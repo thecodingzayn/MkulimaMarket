@@ -1,8 +1,10 @@
 <script setup>
 const supabase = useSupabaseClient()
 const route = useRoute()
-const user = useSupabaseUser()
 const router = useRouter()
+
+// Use getUser() instead of useSupabaseUser() for reliable auth check
+const { data: { user } } = await supabase.auth.getUser()
 
 const { data: product } = await useAsyncData('product', async () => {
   const { data: productData, error } = await supabase
@@ -13,11 +15,8 @@ const { data: product } = await useAsyncData('product', async () => {
 
   if (error || !productData) return null
 
-  // Use different variable name to avoid conflict with useSupabaseUser()
-  const { data: { user: currentUser } } = await supabase.auth.getUser()
-
   // Block access only if reviewing AND not the owner
-  if (productData.status === 'reviewing' && productData.user_id !== currentUser?.id) {
+  if (productData.status === 'reviewing' && productData.user_id !== user?.id) {
     return null
   }
 
@@ -30,7 +29,6 @@ const { data: product } = await useAsyncData('product', async () => {
   return { ...productData, profiles: profileData }
 })
 
-// Only show active similar listings
 const { data: similarListings } = await useAsyncData('similar', async () => {
   if (!product.value) return []
 
@@ -80,9 +78,9 @@ const deleteListing = async (id) => {
         <!-- Left - Image & Details -->
         <div class="flex-1 min-w-0 space-y-4">
 
-          <!-- Under Review Banner - only visible to owner -->
+          <!-- Under Review Banner - owner only -->
           <div
-            v-if="product.status !== 'active' && user?.id === product.user_id"
+            v-if="product.status === 'reviewing' && user?.id === product.user_id"
             class="bg-orange-50 border border-orange-200 rounded-2xl px-5 py-4 flex items-center gap-3"
           >
             <span class="text-2xl">🔄</span>
@@ -99,10 +97,7 @@ const deleteListing = async (id) => {
               :src="product.image_url"
               class="w-full h-80 object-cover"
             />
-            <div
-              v-else
-              class="w-full h-80 flex items-center justify-center text-8xl bg-gray-50"
-            >
+            <div v-else class="w-full h-80 flex items-center justify-center text-8xl bg-gray-50">
               🌾
             </div>
           </div>
@@ -115,123 +110,158 @@ const deleteListing = async (id) => {
             </div>
 
             <!-- Tags -->
-            <!-- Tags -->
-<div class="flex flex-wrap gap-2 mt-3">
-  <span class="bg-green-50 text-green-700 text-sm px-3 py-1 rounded-full">
-    {{ product.category }}
-  </span>
-  <span class="bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-full">
-    📍 {{ product.location }}
-  </span>
-  <span class="bg-gray-100 text-gray-500 text-xs px-3 py-1 rounded-full">
-    🕒 {{ formatDate(product.created_at) }}
-  </span>
-
-  <!-- Status badge - only visible to owner -->
-  <span
-    v-if="user?.id === product.user_id"
-    class="text-xs px-3 py-1 rounded-full font-semibold"
-    :class="product.status === 'active'
-      ? 'bg-green-100 text-green-700'
-      : 'bg-orange-100 text-orange-600'"
-  >
-    {{ product.status === 'active' ? '✅ Active' : '🔄 Reviewing' }}
-  </span>
-</div>
+            <div class="flex flex-wrap gap-2 mt-3">
+              <span class="bg-green-50 text-green-700 text-sm px-3 py-1 rounded-full">
+                {{ product.category }}
+              </span>
+              <span class="bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-full">
+                📍 {{ product.location }}
+              </span>
+              <span class="bg-gray-100 text-gray-500 text-xs px-3 py-1 rounded-full">
+                🕒 {{ formatDate(product.created_at) }}
+              </span>
+              <!-- Status badge - owner only -->
+              <span
+                v-if="user?.id === product.user_id"
+                class="text-xs px-3 py-1 rounded-full font-semibold"
+                :class="product.status === 'active'
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-orange-100 text-orange-600'"
+              >
+                {{ product.status === 'active' ? '✅ Active' : '🔄 Reviewing' }}
+              </span>
+            </div>
 
             <div class="border-t my-4"></div>
 
             <h3 class="font-semibold text-gray-700 mb-2">Description</h3>
             <p class="text-gray-600 leading-relaxed">{{ product.description }}</p>
+
+            <!-- Owner action buttons inside detail card -->
+            <template v-if="user?.id === product.user_id">
+              <div class="border-t mt-6 pt-4 flex gap-3">
+                <NuxtLink
+                  :to="`/listings/edit/${product.id}`"
+                  class="flex-1 flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-xl font-semibold transition"
+                >
+                  ✏️ Edit Listing
+                </NuxtLink>
+                <button
+                  @click="deleteListing(product.id)"
+                  class="flex-1 flex items-center justify-center gap-2 bg-red-50 hover:bg-red-100 text-red-500 py-3 rounded-xl font-semibold transition"
+                >
+                  🗑️ Delete Listing
+                </button>
+              </div>
+            </template>
+
           </div>
 
         </div>
 
-        <!-- Right - Poster Info & Contact -->
+        <!-- Right Sidebar -->
         <div class="w-full md:w-80 shrink-0 space-y-4">
 
-          <div class="bg-white rounded-2xl shadow-sm p-6">
-            <h3 class="font-bold text-gray-700 mb-4 border-b pb-3">Posted by</h3>
+          <!-- OWNER VIEW -->
+          <template v-if="user?.id === product.user_id">
+            <div class="bg-white rounded-2xl shadow-sm p-6">
+              <h3 class="font-bold text-gray-700 mb-4 border-b pb-3">Your Listing</h3>
 
-            <div class="flex items-center gap-3 mb-5">
-              <div class="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-2xl">
-                👤
+              <div class="flex items-center gap-3 mb-4">
+                <div class="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-2xl">
+                  👤
+                </div>
+                <div>
+                  <p class="font-semibold text-gray-800">{{ product.profiles?.name }}</p>
+                  <p class="text-sm text-gray-400">📍 {{ product.profiles?.location }}</p>
+                </div>
               </div>
-              <div>
-                <p class="font-semibold text-gray-800">{{ product.profiles?.name }}</p>
-                <p class="text-sm text-gray-400">📍 {{ product.profiles?.location }}</p>
-              </div>
-            </div>
 
-            <!-- NOT LOGGED IN -->
-            <template v-if="!user">
-              <p class="text-center text-sm text-gray-400 mb-4">
-                Sign in to contact this seller
-              </p>
-              <NuxtLink
-                to="/auth/login"
-                class="flex items-center justify-center w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-semibold transition"
-              >
-                Sign In to Contact
-              </NuxtLink>
-            </template>
-
-            <!-- YOUR OWN LISTING -->
-            <template v-else-if="user.id === product.user_id">
-              <div class="bg-green-50 text-green-700 text-sm text-center py-2 rounded-lg mb-4">
+              <div class="bg-green-50 text-green-700 text-sm text-center py-3 rounded-xl font-semibold mb-4">
                 ✅ This is your listing
               </div>
-              <NuxtLink
-                :to="`/listings/edit/${product.id}`"
-                class="flex items-center justify-center gap-2 w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-xl font-semibold transition mb-3"
-              >
-                ✏️ Edit Listing
-              </NuxtLink>
-              <button
-                @click="deleteListing(product.id)"
-                class="flex items-center justify-center gap-2 w-full bg-red-50 hover:bg-red-100 text-red-500 py-3 rounded-xl font-semibold transition"
-              >
-                🗑️ Delete Listing
-              </button>
-            </template>
 
-            <!-- SOMEONE ELSE'S LISTING -->
-            <template v-else>
-              
-              <a
-                :href="`tel:${product.profiles?.phone}`"
-                class="flex items-center justify-center gap-2 w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-semibold transition mb-3"
-              >
-                📞 Call {{ product.profiles?.name?.split(' ')[0] }}
-              </a>
-              
-              <a
-                :href="`https://wa.me/254${product.profiles?.phone?.slice(-9)}`"
-                target="_blank"
-                class="flex items-center justify-center gap-2 w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-semibold transition"
-              >
-                💬 WhatsApp
-              </a>
-            </template>
+              <!-- Stats -->
+              <div class="grid grid-cols-2 gap-3">
+                <div class="bg-gray-50 rounded-xl p-3 text-center">
+                  <p class="text-xl font-bold text-gray-800">0</p>
+                  <p class="text-xs text-gray-400 mt-1">👁️ Views</p>
+                </div>
+                <div class="bg-gray-50 rounded-xl p-3 text-center">
+                  <p class="text-xl font-bold text-gray-800">0</p>
+                  <p class="text-xs text-gray-400 mt-1">📞 Contacts</p>
+                </div>
+              </div>
+            </div>
+          </template>
 
-          </div>
+          <!-- NON-OWNER VIEW -->
+          <template v-else>
+            <div class="bg-white rounded-2xl shadow-sm p-6">
+              <h3 class="font-bold text-gray-700 mb-4 border-b pb-3">Posted by</h3>
 
-          <!-- Safety Tips -->
-          <div class="bg-yellow-50 border border-yellow-200 rounded-2xl p-5">
-            <h4 class="font-semibold text-yellow-800 mb-3">🔒 Safety Tips</h4>
-            <ul class="text-sm text-yellow-700 space-y-2">
-              <li>• Meet in a safe public place</li>
-              <li>• Inspect produce before paying</li>
-              <li>• Never send money in advance</li>
-              <li>• Deal with people you can verify</li>
-            </ul>
-          </div>
+              <div class="flex items-center gap-3 mb-5">
+                <div class="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-2xl">
+                  👤
+                </div>
+                <div>
+                  <p class="font-semibold text-gray-800">{{ product.profiles?.name }}</p>
+                  <p class="text-sm text-gray-400">📍 {{ product.profiles?.location }}</p>
+                </div>
+              </div>
+
+              <!-- NOT LOGGED IN -->
+              <template v-if="!user">
+                <p class="text-center text-sm text-gray-400 mb-4">
+                  Sign in to contact this seller
+                </p>
+                <NuxtLink
+                  to="/auth/login"
+                  class="flex items-center justify-center w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-semibold transition"
+                >
+                  Sign In to Contact
+                </NuxtLink>
+              </template>
+
+              <!-- LOGGED IN, NOT OWNER -->
+              <template v-else>
+                
+                <a
+                  :href="`tel:${product.profiles?.phone}`"
+                  class="flex items-center justify-center gap-2 w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-semibold transition mb-3"
+                >
+                  📞 Call {{ product.profiles?.name?.split(' ')[0] }}
+                </a>
+                
+                <a
+                  :href="`https://wa.me/254${product.profiles?.phone?.slice(-9)}`"
+                  target="_blank"
+                  class="flex items-center justify-center gap-2 w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-semibold transition"
+                >
+                  💬 WhatsApp
+                </a>
+              </template>
+
+            </div>
+
+            <!-- Safety Tips - non-owner only -->
+            <div class="bg-yellow-50 border border-yellow-200 rounded-2xl p-5">
+              <h4 class="font-semibold text-yellow-800 mb-3">🔒 Safety Tips</h4>
+              <ul class="text-sm text-yellow-700 space-y-2">
+                <li>• Meet in a safe public place</li>
+                <li>• Inspect produce before paying</li>
+                <li>• Never send money in advance</li>
+                <li>• Deal with people you can verify</li>
+              </ul>
+            </div>
+
+          </template>
 
         </div>
 
       </div>
 
-      <!-- Not found / Under review for others -->
+      <!-- Not found -->
       <div v-else class="text-center py-20">
         <div class="text-6xl mb-4">🌾</div>
         <p class="text-gray-500 text-lg">Listing not found</p>
