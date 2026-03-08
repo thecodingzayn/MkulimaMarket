@@ -59,6 +59,18 @@ const deleteListing = async (id) => {
   await supabase.from('products').delete().eq('id', id)
   router.push('/')
 }
+
+// Time ago helper
+const timeAgo = (date) => {
+  const now = new Date()
+  const past = new Date(date)
+  const diff = Math.floor((now - past) / 1000)
+  if (diff < 60) return `${diff} sec ago`
+  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)} hr ago`
+  if (diff < 604800) return `${Math.floor(diff / 86400)} days ago`
+  return new Date(date).toLocaleDateString('en-KE')
+}
 </script>
 
 <template>
@@ -118,7 +130,7 @@ const deleteListing = async (id) => {
                 📍 {{ product.location }}
               </span>
               <span class="bg-gray-100 text-gray-500 text-xs px-3 py-1 rounded-full">
-                🕒 {{ formatDate(product.created_at) }}
+                🕒 Created {{ timeAgo(product.created_at) }}
               </span>
               <!-- Status badge - owner only -->
               <span
