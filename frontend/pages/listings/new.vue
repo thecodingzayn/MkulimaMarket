@@ -18,11 +18,26 @@ const form = ref({
   location: '',
   category: '',
   image: null,
+  expiryDays: 30,
 })
 
 const loading = ref(false)
 const error = ref('')
 const imagePreview = ref(null)
+
+const expiryOptions = [
+  { label: '7 days', value: 7 },
+  { label: '14 days', value: 14 },
+  { label: '30 days', value: 30 },
+  { label: '60 days', value: 60 },
+  { label: '90 days', value: 90 },
+]
+
+const expiryDate = computed(() => {
+  const d = new Date()
+  d.setDate(d.getDate() + form.value.expiryDays)
+  return d.toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' })
+})
 
 const categories = [
   '🥬 Vegetables', '🍎 Fruits', '🌽 Grains & Cereals',
@@ -36,14 +51,12 @@ const counties = [
   'Nyeri', 'Machakos', 'Kiambu', 'Meru', 'Kakamega'
 ]
 
-// Handle image preview
 const handleImage = (e) => {
   const file = e.target.files[0]
   form.value.image = file
   imagePreview.value = URL.createObjectURL(file)
 }
 
-// Upload image to Supabase Storage
 const uploadImage = async () => {
   if (!form.value.image) return null
 
@@ -68,12 +81,12 @@ const submitListing = async () => {
   error.value = ''
 
   try {
-    // Get fresh session
     const { data: { session } } = await supabase.auth.getSession()
-    
-    console.log('Session user id:', session?.user?.id)
 
     const imageUrl = await uploadImage()
+
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + form.value.expiryDays)
 
     const { error: insertError } = await supabase
       .from('products')
@@ -85,7 +98,8 @@ const submitListing = async () => {
         category: form.value.category,
         image_url: imageUrl,
         user_id: session?.user?.id,
-        status: 'active' // For simplicity, auto-approve listings. In production, consider 'reviewing' status and admin approval.
+        status: 'active',
+        expires_at: expiresAt.toISOString(),
       })
 
     if (insertError) throw insertError
@@ -103,7 +117,6 @@ const submitListing = async () => {
   <div class="max-w-2xl mx-auto px-4 py-10">
     <h1 class="text-2xl font-bold text-gray-800 mb-6">Post a Listing</h1>
 
-    <!-- Error -->
     <div v-if="error" class="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-lg mb-4">
       {{ error }}
     </div>
@@ -152,9 +165,7 @@ const submitListing = async () => {
           class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
         >
           <option value="">Select a category</option>
-          <option v-for="cat in categories" :key="cat" :value="cat">
-            {{ cat }}
-          </option>
+          <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
         </select>
       </div>
 
@@ -166,21 +177,32 @@ const submitListing = async () => {
           class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
         >
           <option value="">Select your county</option>
-          <option v-for="county in counties" :key="county" :value="county">
-            {{ county }}
+          <option v-for="county in counties" :key="county" :value="county">{{ county }}</option>
+        </select>
+      </div>
+
+      <!-- Listing Duration -->
+      <div>
+        <label class="text-sm text-gray-600 mb-1 block">Listing Duration</label>
+        <select
+          v-model="form.expiryDays"
+          class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+        >
+          <option v-for="opt in expiryOptions" :key="opt.value" :value="opt.value">
+            {{ opt.label }}
           </option>
         </select>
+        <p class="text-xs text-gray-400 mt-1">
+          ⏳ Expires on <span class="font-medium text-gray-600">{{ expiryDate }}</span>
+        </p>
       </div>
 
       <!-- Image Upload -->
       <div>
         <label class="text-sm text-gray-600 mb-1 block">Product Image</label>
-
-        <!-- Preview -->
         <div v-if="imagePreview" class="mb-3">
           <img :src="imagePreview" class="w-full h-48 object-cover rounded-lg" />
         </div>
-
         <input
           type="file"
           accept="image/*"

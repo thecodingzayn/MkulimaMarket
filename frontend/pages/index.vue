@@ -82,6 +82,7 @@ const filtered = computed(() => {
     const matchCategory = selectedCategory.value ? p.category === selectedCategory.value : true
     const matchMinPrice = minPrice.value && parseFloat(minPrice.value) >= 0 ? p.price >= parseFloat(minPrice.value) : true
     const matchMaxPrice = maxPrice.value && parseFloat(maxPrice.value) >= 0 ? p.price <= parseFloat(maxPrice.value) : true
+    const notExpired = p.expires_at ? new Date(p.expires_at) > new Date() : true
     return matchSearch && matchLocation && matchCategory && matchMinPrice && matchMaxPrice
   })
 })
