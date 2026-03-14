@@ -1,15 +1,9 @@
 <script setup>
-definePageMeta({ middleware: 'auth' })
+definePageMeta({ middleware: ['auth', 'no-admin'] })
 
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 const router = useRouter()
-
-onMounted(async () => {
-  const { data } = await supabase.auth.getSession()
-  console.log('Session:', data.session)
-  console.log('User:', data.session?.user)
-})
 
 const form = ref({
   title: '',
@@ -98,13 +92,13 @@ const submitListing = async () => {
         category: form.value.category,
         image_url: imageUrl,
         user_id: session?.user?.id,
-        status: 'active',
+        status: 'reviewing', // ← changed from 'active'
         expires_at: expiresAt.toISOString(),
       })
 
     if (insertError) throw insertError
 
-    router.push('/')
+    router.push('/dashboard')  // ← send to dashboard so they see the reviewing status
   } catch (err) {
     error.value = err.message
   } finally {
@@ -157,6 +151,17 @@ const submitListing = async () => {
         />
       </div>
 
+      <!-- Add after Price field -->
+<div>
+  <label class="text-sm text-gray-600 mb-1 block">Quantity Available</label>
+  <input
+    v-model="form.quantity"
+    type="text"
+    placeholder="e.g. 50kg, 200 pieces, 10 crates"
+    class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+  />
+</div>
+
       <!-- Category -->
       <div>
         <label class="text-sm text-gray-600 mb-1 block">Category</label>
@@ -168,6 +173,13 @@ const submitListing = async () => {
           <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
         </select>
       </div>
+
+      <div v-if="form.category">
+  <MarketPriceWidget
+    :category="form.category"
+    mode="suggest"
+  />
+</div>
 
       <!-- Location -->
       <div>

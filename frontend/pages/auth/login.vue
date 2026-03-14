@@ -2,7 +2,6 @@
 definePageMeta({ layout: 'auth' })
 
 const supabase = useSupabaseClient()
-const router = useRouter()
 
 const form = ref({
   email: '',
@@ -16,18 +15,31 @@ const login = async () => {
   loading.value = true
   error.value = ''
 
-  const { error: signInError } = await supabase.auth.signInWithPassword({
+  const { error: authError } = await supabase.auth.signInWithPassword({
     email: form.value.email,
     password: form.value.password,
   })
 
-  if (signInError) {
-    error.value = signInError.message
+  if (authError) {
+    error.value = authError.message
     loading.value = false
     return
   }
 
-  router.push('/')
+  // Check if admin and redirect accordingly
+  const { data: { session } } = await supabase.auth.getSession()
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', session.user.id)
+    .single()
+
+  if (profile?.is_admin) {
+    navigateTo('/admin')
+  } else {
+    navigateTo('/')
+  }
+
   loading.value = false
 }
 </script>
@@ -36,18 +48,15 @@ const login = async () => {
   <div class="min-h-screen bg-gray-50 flex items-center justify-center px-4">
     <div class="bg-white rounded-2xl shadow-md p-8 w-full max-w-md">
 
-      <!-- Logo -->
       <div class="text-center mb-6">
         <h1 class="text-2xl font-bold text-green-600">MkulimaMarket</h1>
         <p class="text-gray-500 text-sm mt-1">Welcome back</p>
       </div>
 
-      <!-- Error -->
       <div v-if="error" class="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-lg mb-4">
         {{ error }}
       </div>
 
-      <!-- Form -->
       <div class="space-y-4">
         <div>
           <label class="text-sm text-gray-600 mb-1 block">Email</label>
@@ -69,7 +78,6 @@ const login = async () => {
           />
         </div>
 
-        <!-- Forgot password -->
         <div class="text-right">
           <NuxtLink to="/auth/forgot-password" class="text-sm text-green-600 hover:underline">
             Forgot password?
@@ -85,7 +93,6 @@ const login = async () => {
         </button>
       </div>
 
-      <!-- Register link -->
       <p class="text-center text-sm text-gray-500 mt-6">
         Don't have an account?
         <NuxtLink to="/auth/register" class="text-green-600 font-semibold hover:underline">

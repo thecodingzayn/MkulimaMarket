@@ -1,4 +1,5 @@
 <script setup>
+definePageMeta({ middleware: 'no-admin' })
 const supabase = useSupabaseClient()
 
 const { data: products } = await useAsyncData('products', async () => {
@@ -8,6 +9,7 @@ const { data: products } = await useAsyncData('products', async () => {
     .from('products')
     .select('*')
     .eq('status', 'active')
+    .order('is_boosted', { ascending: false })
     .order('created_at', { ascending: false })
 
   if (user) {
@@ -30,6 +32,7 @@ const selectedCategory = ref('')
 const minPrice = ref('')
 const maxPrice = ref('')
 const showFilters = ref(false)
+const quantitySearch = ref('')
 
 const categories = [
   { name: '🥬 Vegetables', icon: '🥬', label: 'Vegetables' },
@@ -43,7 +46,7 @@ const categories = [
   { name: '🐟 Fish & Seafood', icon: '🐟', label: 'Fish & Seafood' },
   { name: '🌱 Seedlings & Inputs', icon: '🌱', label: 'Seedlings & Inputs' },
 ]
-
+ 
 const counties = [
   'Nairobi', 'Nakuru', 'Eldoret', 'Kisumu', 'Mombasa',
   'Nyeri', 'Machakos', 'Kiambu', 'Meru', 'Kakamega'
@@ -55,6 +58,7 @@ const activeFilterCount = computed(() => {
   if (selectedLocation.value) count++
   if (minPrice.value) count++
   if (maxPrice.value) count++
+  if (quantitySearch.value) count++
   return count
 })
 
@@ -63,6 +67,7 @@ const clearFilters = () => {
   minPrice.value = ''
   maxPrice.value = ''
   search.value = ''
+  quantitySearch.value = ''
 }
 
 const categoryCount = computed(() => {
@@ -82,8 +87,10 @@ const filtered = computed(() => {
     const matchCategory = selectedCategory.value ? p.category === selectedCategory.value : true
     const matchMinPrice = minPrice.value && parseFloat(minPrice.value) >= 0 ? p.price >= parseFloat(minPrice.value) : true
     const matchMaxPrice = maxPrice.value && parseFloat(maxPrice.value) >= 0 ? p.price <= parseFloat(maxPrice.value) : true
-    const notExpired = p.expires_at ? new Date(p.expires_at) > new Date() : true
-    return matchSearch && matchLocation && matchCategory && matchMinPrice && matchMaxPrice
+    const matchQuantity = quantitySearch.value
+      ? p.quantity?.toLowerCase().includes(quantitySearch.value.toLowerCase())
+      : true
+    return matchSearch && matchLocation && matchCategory && matchMinPrice && matchMaxPrice && matchQuantity
   })
 })
 
@@ -169,6 +176,20 @@ const selectCategory = (name) => {
               class="pl-12 pr-4 py-3 rounded-lg text-gray-700 outline-none w-36"
             />
           </div>
+
+          <!-- Add inside the expanded filter row, after max price -->
+          
+<input
+  v-model="quantitySearch"
+  type="text"
+  placeholder="e.g. 50kg"
+  class="px-4 py-3 rounded-lg text-gray-700 outline-none w-36"
+/>
+<span v-if="quantitySearch"
+  class="bg-white bg-opacity-20 text-white text-sm px-3 py-1 rounded-full flex items-center gap-1">
+  📦 {{ quantitySearch }}
+  <button @click="quantitySearch = ''" class="ml-1 hover:text-red-300">✕</button>
+</span>
 
           <!-- Clear filters -->
           <button

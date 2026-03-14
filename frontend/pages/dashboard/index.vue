@@ -1,15 +1,8 @@
 <script setup>
-definePageMeta({ middleware: 'auth' })
+definePageMeta({ middleware: ['auth', 'no-admin'] })
 
 const supabase = useSupabaseClient()
-const router = useRouter()
-
 const { data: { user } } = await supabase.auth.getUser()
-const { data: profile } = await supabase
-  .from('profiles')
-  .select('*')
-  .eq('id', user.id)
-  .single()
 
 const { data: listings, refresh } = await useAsyncData('my-listings', async () => {
   const { data } = await supabase
@@ -20,7 +13,6 @@ const { data: listings, refresh } = await useAsyncData('my-listings', async () =
   return data ?? []
 })
 
-// Fetch all ratings for this seller's listings in one query
 const { data: allRatings } = await useAsyncData('my-ratings', async () => {
   const { data } = await supabase
     .from('ratings')
@@ -29,7 +21,28 @@ const { data: allRatings } = await useAsyncData('my-ratings', async () => {
   return data ?? []
 })
 
-// Build a map: listing_id → { count, average }
+const { data: allStats } = await useAsyncData('my-stats', async () => {
+  if (!listings.value?.length) return {}
+  const productIds = listings.value.map(l => l.id)
+  const [{ data: views }, { data: contacts }] = await Promise.all([
+    supabase.from('listing_views').select('product_id').in('product_id', productIds),
+    supabase.from('listing_contacts').select('product_id').in('product_id', productIds),
+  ])
+  const stats = {}
+  productIds.forEach(id => { stats[id] = { views: 0, contacts: 0 } })
+  views?.forEach(v => { if (stats[v.product_id]) stats[v.product_id].views++ })
+  contacts?.forEach(c => { if (stats[c.product_id]) stats[c.product_id].contacts++ })
+  return stats
+})
+
+const totalStats = computed(() => {
+  const s = Object.values(allStats.value ?? {})
+  return {
+    views: s.reduce((sum, x) => sum + x.views, 0),
+    contacts: s.reduce((sum, x) => sum + x.contacts, 0),
+  }
+})
+
 const ratingsByListing = computed(() => {
   const map = {}
   allRatings.value?.forEach(r => {
@@ -43,8 +56,7 @@ const ratingsByListing = computed(() => {
 const overallRating = computed(() => {
   const all = allRatings.value ?? []
   if (!all.length) return null
-  const avg = all.reduce((sum, r) => sum + r.score, 0) / all.length
-  return avg.toFixed(1)
+  return (all.reduce((sum, r) => sum + r.score, 0) / all.length).toFixed(1)
 })
 
 const starsDisplay = (score) =>
@@ -61,141 +73,147 @@ const timeAgo = (date) => {
   if (diff < 60) return `${diff} sec ago`
   if (diff < 3600) return `${Math.floor(diff / 60)} min ago`
   if (diff < 86400) return `${Math.floor(diff / 3600)} hr ago`
-  if(diff < 172800) return `yesterday`
+  if (diff < 172800) return `yesterday`
   if (diff < 604800) return `${Math.floor(diff / 86400)} days ago`
   return new Date(date).toLocaleDateString('en-KE')
 }
 </script>
 
 <template>
-  <div class="bg-gray-100 min-h-screen py-8">
-    <div class="max-w-6xl mx-auto px-4">
-      <div class="flex flex-col md:flex-row gap-6">
+  <ProfileLayout>
+    <div class="space-y-4">
 
-        <!-- Sidebar -->
-        <div class="w-full md:w-72 shrink-0 space-y-4">
+      <!-- Stats overview cards -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-white rounded-2xl shadow-sm p-4 text-center">
+          <p class="text-3xl font-bold text-gray-800">{{ listings?.length ?? 0 }}</p>
+          <p class="text-xs text-gray-400 mt-1">📋 Listings</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm p-4 text-center">
+          <p class="text-3xl font-bold text-blue-600">{{ totalStats.views }}</p>
+          <p class="text-xs text-gray-400 mt-1">👁️ Total Views</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm p-4 text-center">
+          <p class="text-3xl font-bold text-green-600">{{ totalStats.contacts }}</p>
+          <p class="text-xs text-gray-400 mt-1">📞 Contacts</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm p-4 text-center">
+          <p class="text-3xl font-bold text-yellow-500">{{ overallRating ?? '—' }}</p>
+          <p class="text-xs text-gray-400 mt-1">⭐ Avg Rating</p>
+        </div>
+      </div>
 
-          <!-- Profile Card -->
-          <div class="bg-white rounded-2xl shadow-sm p-6 text-center">
-            <div class="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3">
-              <span class="text-5xl">👤</span>
-            </div>
-            <h2 class="font-bold text-gray-800 text-lg">{{ profile?.name }}</h2>
-            <p class="text-sm text-gray-400 mt-1">📍 {{ profile?.location }}</p>
-            <p class="text-sm text-gray-400 mt-1">📞 {{ profile?.phone }}</p>
+      <!-- Listings -->
+      <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
 
-            <!-- Overall rating -->
-            <div v-if="overallRating" class="mt-3 bg-yellow-50 rounded-xl py-2 px-3">
-              <p class="text-yellow-500 text-lg">{{ starsDisplay(overallRating) }}</p>
-              <p class="text-sm font-bold text-gray-700">{{ overallRating }} seller rating</p>
-              <p class="text-xs text-gray-400">{{ allRatings.length }} review{{ allRatings.length === 1 ? '' : 's' }}</p>
-            </div>
-
-            <div class="border-t mt-4 pt-4">
-              <p class="text-xs text-gray-400">
-                {{ listings?.length ?? 0 }} listing{{ listings?.length === 1 ? '' : 's' }}
-              </p>
-            </div>
+        <!-- Header -->
+        <div class="flex justify-between items-center px-6 py-5 border-b">
+          <div>
+            <h2 class="text-xl font-bold text-gray-800">My Adverts</h2>
+            <p class="text-sm text-gray-400 mt-0.5">{{ listings?.length ?? 0 }} total</p>
           </div>
-
-          <!-- Menu -->
-          <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
-            <NuxtLink to="/dashboard"
-              class="flex items-center gap-3 px-5 py-4 text-green-600 font-semibold border-l-4 border-green-600 bg-green-50">
-              <span>📋</span> My Listings
-            </NuxtLink>
-            <NuxtLink to="/profile/edit"
-              class="flex items-center gap-3 px-5 py-4 text-gray-600 hover:bg-gray-50 border-l-4 border-transparent transition">
-              <span>⚙️</span> Settings
-            </NuxtLink>
-          </div>
-
           <NuxtLink to="/listings/new"
-            class="block w-full bg-orange-500 hover:bg-orange-600 text-white text-center py-3 rounded-2xl font-semibold transition shadow-sm">
-            + Post New Listing
+            class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl font-semibold transition text-sm">
+            + New Listing
           </NuxtLink>
         </div>
 
-        <!-- Main Content -->
-        <div class="flex-1 min-w-0">
-          <div class="bg-white rounded-2xl shadow-sm p-6">
+        <!-- Overall rating bar -->
+        <div v-if="overallRating" class="px-6 py-3 bg-yellow-50 border-b flex items-center gap-3">
+          <span class="text-yellow-400 text-lg">{{ starsDisplay(overallRating) }}</span>
+          <span class="font-bold text-gray-700">{{ overallRating }}</span>
+          <span class="text-xs text-gray-400">
+            overall seller rating · {{ allRatings.length }} review{{ allRatings.length === 1 ? '' : 's' }}
+          </span>
+        </div>
 
-            <div class="flex justify-between items-center border-b pb-4 mb-6">
-              <h2 class="text-xl font-bold text-gray-800">My Listings</h2>
-              <span class="text-sm text-gray-400">{{ listings?.length ?? 0 }} total</span>
-            </div>
+        <!-- Empty state -->
+        <div v-if="listings?.length === 0" class="text-center py-24">
+          <div class="text-6xl mb-4">🌾</div>
+          <p class="text-gray-500 text-lg font-semibold">No listings yet</p>
+          <p class="text-gray-400 text-sm mt-1 mb-6">Start selling your produce today!</p>
+          <NuxtLink to="/listings/new"
+            class="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl font-semibold transition">
+            + Post a Listing
+          </NuxtLink>
+        </div>
 
-            <!-- Empty state -->
-            <div v-if="listings?.length === 0" class="text-center py-20">
-              <div class="text-6xl mb-4">🌾</div>
-              <p class="text-gray-500 text-lg font-semibold">No listings yet</p>
-              <p class="text-gray-400 text-sm mt-1 mb-6">Start selling your produce today!</p>
-              <NuxtLink to="/listings/new"
-                class="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl font-semibold transition">
-                + Post a Listing
+        <!-- Listing rows -->
+        <div v-else class="divide-y">
+          <div v-for="listing in listings" :key="listing.id"
+            class="flex gap-4 px-6 py-5 hover:bg-gray-50 transition group">
+
+            <!-- Image -->
+            <NuxtLink :to="`/listings/${listing.id}`"
+              class="w-32 h-24 rounded-xl overflow-hidden shrink-0 bg-gray-100">
+              <img v-if="listing.image_url" :src="listing.image_url"
+                class="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+              <div v-else class="w-full h-full flex items-center justify-center text-4xl">🌾</div>
+            </NuxtLink>
+
+            <!-- Info -->
+            <div class="flex-1 min-w-0">
+              <NuxtLink :to="`/listings/${listing.id}`">
+                <h3 class="font-semibold text-gray-800 truncate hover:text-green-600 transition">
+                  {{ listing.title }}
+                </h3>
               </NuxtLink>
+              <p class="text-green-600 font-bold text-lg mt-0.5">KSh {{ listing.price }}</p>
+
+              <div class="flex items-center gap-3 mt-2 flex-wrap">
+                <span class="text-xs px-2 py-1 rounded-full font-semibold"
+                  :class="listing.status === 'active' ? 'bg-green-100 text-green-700'
+                    : listing.status === 'rejected' ? 'bg-red-100 text-red-600'
+                    : 'bg-orange-100 text-orange-600'">
+                  {{ listing.status === 'active' ? '✅ Active'
+                    : listing.status === 'rejected' ? '❌ Rejected'
+                    : '🔄 Reviewing' }}
+                </span>
+                <span class="text-xs text-gray-400">{{ timeAgo(listing.created_at) }}</span>
+                <span v-if="ratingsByListing[listing.id]" class="flex items-center gap-1">
+                  <span class="text-yellow-400 text-sm">
+                    {{ starsDisplay(ratingsByListing[listing.id].total / ratingsByListing[listing.id].count) }}
+                  </span>
+                  <span class="text-xs text-gray-400">({{ ratingsByListing[listing.id].count }})</span>
+                </span>
+              </div>
+
+              <!-- Rejection reason -->
+              <div v-if="listing.status === 'rejected' && listing.rejection_reason"
+                class="mt-2 bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-xs text-red-600 flex items-start gap-2">
+                <span>❌</span>
+                <span><span class="font-semibold">Rejected:</span> {{ listing.rejection_reason }}</span>
+              </div>
+
+              <!-- Per-listing stats -->
+              <div class="flex items-center gap-4 mt-2">
+                <span class="flex items-center gap-1 text-xs text-gray-400">
+                  <span class="text-blue-400">👁️</span>
+                  {{ allStats?.[listing.id]?.views ?? 0 }} views
+                </span>
+                <span class="flex items-center gap-1 text-xs text-gray-400">
+                  <span class="text-green-400">📞</span>
+                  {{ allStats?.[listing.id]?.contacts ?? 0 }} contacts
+                </span>
+                <span class="bg-gray-100 text-gray-500 text-xs px-2 py-1 rounded-full">
+                  📍 {{ listing.location }}
+                </span>
+                <span class="bg-gray-100 text-gray-500 text-xs px-2 py-1 rounded-full">
+                  {{ listing.category }}
+                </span>
+              </div>
             </div>
 
-            <!-- Listings -->
-            <div v-else class="space-y-4">
-              <div v-for="listing in listings" :key="listing.id"
-                class="flex flex-col sm:flex-row gap-4 border border-gray-100 rounded-xl p-4 hover:border-green-200 hover:shadow-sm transition">
-
-                <!-- Image -->
-                <NuxtLink :to="`/listings/${listing.id}`"
-                  class="w-full sm:w-36 h-40 sm:h-28 rounded-xl overflow-hidden shrink-0 bg-gray-100">
-                  <img v-if="listing.image_url" :src="listing.image_url"
-                    class="w-full h-full object-cover hover:scale-105 transition duration-300" />
-                  <div v-else class="w-full h-full flex items-center justify-center text-4xl">🌾</div>
-                </NuxtLink>
-
-                <!-- Info -->
-                <div class="flex-1 min-w-0">
-                  <NuxtLink :to="`/listings/${listing.id}`">
-                    <h3 class="font-semibold text-gray-800 text-lg truncate hover:text-green-600 transition">
-                      {{ listing.title }}
-                    </h3>
-                  </NuxtLink>
-                  <p class="text-green-600 font-bold text-xl mt-1">KSh {{ listing.price }}</p>
-
-                  <div class="flex items-center gap-3 mt-2 flex-wrap">
-                    <span class="text-xs px-2 py-1 rounded-full font-semibold"
-                      :class="listing.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-600'">
-                      {{ listing.status === 'active' ? '✅ Active' : '🔄 Reviewing' }}
-                    </span>
-                    <span class="text-xs text-gray-400">Created {{ timeAgo(listing.created_at) }}</span>
-
-                    <!-- Per-listing rating -->
-                    <span v-if="ratingsByListing[listing.id]" class="flex items-center gap-1">
-                      <span class="text-yellow-400 text-sm">
-                        {{ starsDisplay(ratingsByListing[listing.id].total / ratingsByListing[listing.id].count) }}
-                      </span>
-                      <span class="text-xs text-gray-400">
-                        ({{ ratingsByListing[listing.id].count }})
-                      </span>
-                    </span>
-                    <span v-else class="text-xs text-gray-300">No reviews</span>
-                  </div>
-
-                  <div class="flex flex-wrap gap-2 mt-2">
-                    <span class="bg-gray-100 text-gray-500 text-xs px-2 py-1 rounded-full">📍 {{ listing.location }}</span>
-                    <span class="bg-gray-100 text-gray-500 text-xs px-2 py-1 rounded-full">{{ listing.category }}</span>
-                  </div>
-                </div>
-
-                <!-- Actions -->
-                <div class="flex sm:flex-col gap-2 shrink-0 justify-end">
-                  <NuxtLink :to="`/listings/edit/${listing.id}`"
-                    class="flex items-center justify-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-600 text-sm px-4 py-2 rounded-lg transition font-semibold">
-                    ✏️ Edit
-                  </NuxtLink>
-                  <button @click="deleteListing(listing.id)"
-                    class="flex items-center justify-center gap-1 bg-red-50 hover:bg-red-100 text-red-500 text-sm px-4 py-2 rounded-lg transition font-semibold">
-                    🗑️ Delete
-                  </button>
-                </div>
-
-              </div>
+            <!-- Actions -->
+            <div class="flex flex-col gap-2 shrink-0 justify-center">
+              <NuxtLink :to="`/listings/edit/${listing.id}`"
+                class="flex items-center justify-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-600 text-sm px-4 py-2 rounded-lg transition font-semibold">
+                ✏️ Edit
+              </NuxtLink>
+              <button @click="deleteListing(listing.id)"
+                class="flex items-center justify-center gap-1 bg-red-50 hover:bg-red-100 text-red-500 text-sm px-4 py-2 rounded-lg transition font-semibold">
+                🗑️ Delete
+              </button>
             </div>
 
           </div>
@@ -203,5 +221,5 @@ const timeAgo = (date) => {
 
       </div>
     </div>
-  </div>
+  </ProfileLayout>
 </template>

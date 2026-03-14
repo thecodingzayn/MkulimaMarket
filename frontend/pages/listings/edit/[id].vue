@@ -128,13 +128,15 @@ const saveChanges = async () => {
     }
 
     const updatePayload = {
-      title: form.value.title,
-      description: form.value.description,
-      price: parseFloat(form.value.price),
-      location: form.value.location,
-      category: form.value.category,
-      image_url: imageUrl,
-    }
+  title: form.value.title,
+  description: form.value.description,
+  price: parseFloat(form.value.price),
+  location: form.value.location,
+  category: form.value.category,
+  image_url: imageUrl,
+  status: 'reviewing',       // ← resubmit for review
+  rejection_reason: null,    // ← clear old rejection reason
+}
 
     if (expiresAt) updatePayload.expires_at = expiresAt
 
@@ -188,6 +190,16 @@ const saveChanges = async () => {
         <input v-model="form.price" type="number" min="0"
           class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
       </div>
+
+      <div>
+  <label class="text-sm text-gray-600 mb-1 block">Quantity Available</label>
+  <input
+    v-model="form.quantity"
+    type="text"
+    placeholder="e.g. 50kg, 200 pieces, 10 crates"
+    class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+  />
+</div>
 
       <!-- Category -->
       <div>
