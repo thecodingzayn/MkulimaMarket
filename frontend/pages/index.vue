@@ -46,13 +46,12 @@ const categories = [
   { name: '🐟 Fish & Seafood', icon: '🐟', label: 'Fish & Seafood' },
   { name: '🌱 Seedlings & Inputs', icon: '🌱', label: 'Seedlings & Inputs' },
 ]
- 
+
 const counties = [
   'Nairobi', 'Nakuru', 'Eldoret', 'Kisumu', 'Mombasa',
   'Nyeri', 'Machakos', 'Kiambu', 'Meru', 'Kakamega'
 ]
 
-// Count active filters to show badge
 const activeFilterCount = computed(() => {
   let count = 0
   if (selectedLocation.value) count++
@@ -111,8 +110,7 @@ const selectCategory = (name) => {
         <div class="flex justify-center gap-3 mb-3">
           <select
             v-model="selectedLocation"
-            class="px-4 py-3 rounded-lg text-gray-700"
-          >
+            class="px-4 py-3 rounded-lg text-gray-700">
             <option value="">All Kenya</option>
             <option v-for="county in counties" :key="county" :value="county">
               {{ county }}
@@ -137,14 +135,11 @@ const selectCategory = (name) => {
             class="relative flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition"
             :class="showFilters || activeFilterCount > 0
               ? 'bg-white text-green-700'
-              : 'bg-white bg-opacity-20 hover:bg-opacity-30 text-white'"
-          >
+              : 'bg-white bg-opacity-20 hover:bg-opacity-30 text-white'">
             ⚙️ Filters
-            <!-- Badge -->
             <span
               v-if="activeFilterCount > 0"
-              class="absolute -top-1 -right-1 bg-orange-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold"
-            >
+              class="absolute -top-1 -right-1 bg-orange-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
               {{ activeFilterCount }}
             </span>
           </button>
@@ -177,26 +172,22 @@ const selectCategory = (name) => {
             />
           </div>
 
-          <!-- Add inside the expanded filter row, after max price -->
-          
-<input
-  v-model="quantitySearch"
-  type="text"
-  placeholder="e.g. 50kg"
-  class="px-4 py-3 rounded-lg text-gray-700 outline-none w-36"
-/>
-<span v-if="quantitySearch"
-  class="bg-white bg-opacity-20 text-white text-sm px-3 py-1 rounded-full flex items-center gap-1">
-  📦 {{ quantitySearch }}
-  <button @click="quantitySearch = ''" class="ml-1 hover:text-red-300">✕</button>
-</span>
+          <!-- Quantity -->
+          <div class="relative">
+            <span class="absolute left-3 top-3 text-lg">📦</span>
+            <input
+              v-model="quantitySearch"
+              type="text"
+              placeholder="Quantity e.g. 50kg"
+              class="pl-10 pr-4 py-3 rounded-lg text-gray-700 outline-none w-44"
+            />
+          </div>
 
           <!-- Clear filters -->
           <button
             v-if="activeFilterCount > 0"
             @click="clearFilters"
-            class="px-4 py-3 rounded-lg bg-red-100 text-red-600 font-semibold hover:bg-red-200 transition text-sm"
-          >
+            class="px-4 py-3 rounded-lg bg-red-100 text-red-600 font-semibold hover:bg-red-200 transition text-sm">
             ✕ Clear filters
           </button>
 
@@ -204,26 +195,25 @@ const selectCategory = (name) => {
 
         <!-- Active filter tags -->
         <div v-if="activeFilterCount > 0" class="flex justify-center gap-2 mt-3 flex-wrap">
-          <span
-            v-if="selectedLocation"
-            class="bg-white bg-opacity-20 text-white text-sm px-3 py-1 rounded-full flex items-center gap-1"
-          >
+          <span v-if="selectedLocation"
+            class="bg-white bg-opacity-20 text-white text-sm px-3 py-1 rounded-full flex items-center gap-1">
             📍 {{ selectedLocation }}
             <button @click="selectedLocation = ''" class="ml-1 hover:text-red-300">✕</button>
           </span>
-          <span
-            v-if="minPrice"
-            class="bg-white bg-opacity-20 text-white text-sm px-3 py-1 rounded-full flex items-center gap-1"
-          >
+          <span v-if="minPrice"
+            class="bg-white bg-opacity-20 text-white text-sm px-3 py-1 rounded-full flex items-center gap-1">
             Min: KSh {{ minPrice }}
             <button @click="minPrice = ''" class="ml-1 hover:text-red-300">✕</button>
           </span>
-          <span
-            v-if="maxPrice"
-            class="bg-white bg-opacity-20 text-white text-sm px-3 py-1 rounded-full flex items-center gap-1"
-          >
+          <span v-if="maxPrice"
+            class="bg-white bg-opacity-20 text-white text-sm px-3 py-1 rounded-full flex items-center gap-1">
             Max: KSh {{ maxPrice }}
             <button @click="maxPrice = ''" class="ml-1 hover:text-red-300">✕</button>
+          </span>
+          <span v-if="quantitySearch"
+            class="bg-white bg-opacity-20 text-white text-sm px-3 py-1 rounded-full flex items-center gap-1">
+            📦 {{ quantitySearch }}
+            <button @click="quantitySearch = ''" class="ml-1 hover:text-red-300">✕</button>
           </span>
         </div>
 
@@ -244,8 +234,7 @@ const selectCategory = (name) => {
               <button
                 @click="selectCategory('')"
                 class="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition"
-                :class="selectedCategory === '' ? 'bg-green-50 text-green-600 font-semibold' : 'text-gray-700'"
-              >
+                :class="selectedCategory === '' ? 'bg-green-50 text-green-600 font-semibold' : 'text-gray-700'">
                 <div class="flex items-center gap-3">
                   <span>🛒</span>
                   <span>All Categories</span>
@@ -259,8 +248,7 @@ const selectCategory = (name) => {
                 :key="cat.name"
                 @click="selectCategory(cat.name)"
                 class="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition"
-                :class="selectedCategory === cat.name ? 'bg-green-50 text-green-600 font-semibold' : 'text-gray-700'"
-              >
+                :class="selectedCategory === cat.name ? 'bg-green-50 text-green-600 font-semibold' : 'text-gray-700'">
                 <div class="flex items-center gap-3">
                   <span>{{ cat.icon }}</span>
                   <span class="text-sm">{{ cat.label }}</span>
@@ -275,8 +263,6 @@ const selectCategory = (name) => {
 
         <!-- Listings -->
         <div class="flex-1 min-w-0">
-
-          <!-- Header -->
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-xl font-bold text-gray-800">
               {{ selectedCategory || 'Latest Listings' }}
@@ -286,20 +272,17 @@ const selectCategory = (name) => {
             </span>
           </div>
 
-          <!-- No results -->
           <div v-if="filtered?.length === 0" class="bg-white rounded-2xl p-20 text-center shadow-sm">
             <div class="text-5xl mb-4">🌾</div>
             <p class="text-gray-500">No listings found</p>
             <button
               v-if="activeFilterCount > 0 || search || selectedCategory"
               @click="clearFilters(); selectCategory('')"
-              class="mt-4 text-green-600 hover:underline text-sm"
-            >
+              class="mt-4 text-green-600 hover:underline text-sm">
               Clear all filters
             </button>
           </div>
 
-          <!-- Grid -->
           <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             <ProductCard
               v-for="product in filtered"
@@ -307,7 +290,6 @@ const selectCategory = (name) => {
               :product="product"
             />
           </div>
-
         </div>
       </div>
     </div>

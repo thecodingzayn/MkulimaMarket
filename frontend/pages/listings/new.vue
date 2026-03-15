@@ -92,7 +92,8 @@ const submitListing = async () => {
         category: form.value.category,
         image_url: imageUrl,
         user_id: session?.user?.id,
-        status: 'reviewing', // ← changed from 'active'
+        status: 'reviewing',
+        review_reason: 'new_listing', // ← changed from 'active'
         expires_at: expiresAt.toISOString(),
       })
 

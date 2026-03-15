@@ -5,12 +5,12 @@ const supabase = useSupabaseClient()
 const { data: { user } } = await supabase.auth.getUser()
 
 const searchQuery = ref('')
-const activeTab = ref('all') // all | unread | spam
+const activeTab = ref('all')
 
 const { data: conversations, refresh } = await useAsyncData('conversations', async () => {
   const { data, error } = await supabase
     .from('conversations')
-    .select(`id, created_at, listing_id, initiator_id, recipient_id, products(id, title, image_url)`)
+    .select(`id, created_at, listing_id, initiator_id, recipient_id, is_spam, initiator_spam, recipient_spam, products(id, title, image_url, price, user_id)`)
     .or(`initiator_id.eq.${user.id},recipient_id.eq.${user.id}`)
     .order('created_at', { ascending: false })
   if (error) console.error('conversations error:', error)
@@ -20,9 +20,9 @@ const { data: conversations, refresh } = await useAsyncData('conversations', asy
 const { data: profiles } = await useAsyncData('inbox-profiles', async () => {
   if (!conversations.value?.length) return {}
   const ids = [...new Set(conversations.value.flatMap(c => [c.initiator_id, c.recipient_id]))]
-  const { data } = await supabase.from('profiles').select('id, name, avatar_url').in('id', ids)
+  const { data } = await supabase.from('profiles').select('id, name, avatar_url, phone').in('id', ids)
   const map = {}
-  data?.forEach(p => { map[p.id] = { name: p.name, avatar_url: p.avatar_url } })
+  data?.forEach(p => { map[p.id] = { name: p.name, avatar_url: p.avatar_url, phone: p.phone } })
   return map
 })
 
@@ -52,8 +52,20 @@ const otherPersonId = (conv) =>
 
 const otherPerson = (conv) => profiles.value?.[otherPersonId(conv)]
 
+const isSpamForMe = (conv) => {
+  if (!conv) return false
+  if (conv.initiator_id === user.id) return conv.initiator_spam ?? false
+  return conv.recipient_spam ?? false
+}
+
 const filteredConversations = computed(() => {
-  let list = conversations.value ?? []
+  let list = [...(conversations.value ?? [])]
+
+  if (activeTab.value === 'spam') {
+    list = list.filter(c => isSpamForMe(c))
+  } else {
+    list = list.filter(c => !isSpamForMe(c))
+  }
 
   if (activeTab.value === 'unread') {
     list = list.filter(c => (messageMeta.value?.[c.id]?.unread ?? 0) > 0)
@@ -62,57 +74,143 @@ const filteredConversations = computed(() => {
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.toLowerCase()
     list = list.filter(c =>
-      conv.products?.title?.toLowerCase().includes(q) ||
+      c.products?.title?.toLowerCase().includes(q) ||
       otherPerson(c)?.name?.toLowerCase().includes(q)
     )
   }
 
+  list.sort((a, b) => {
+    const aTime = messageMeta.value?.[a.id]?.lastAt ?? a.created_at
+    const bTime = messageMeta.value?.[b.id]?.lastAt ?? b.created_at
+    return new Date(bTime) - new Date(aTime)
+  })
+
   return list
 })
 
+const toNairobi = (date) => {
+  const utcMs = new Date(date).getTime()
+  const nairobiMs = utcMs + (3 * 60 * 60 * 1000)
+  return new Date(nairobiMs)
+}
+
 const formatTime = (date) => {
   if (!date || !process.client) return ''
-  const d = new Date(date)
-  const hours = d.getHours().toString().padStart(2, '0')
+  const d = toNairobi(date)
+  const hours = d.getHours()
   const minutes = d.getMinutes().toString().padStart(2, '0')
-  return `${hours}:${minutes}`
+  const ampm = hours >= 12 ? 'PM' : 'AM'
+  const h = hours % 12 || 12
+  return `${h}:${minutes} ${ampm}`
 }
+
 const smartDate = (date) => {
-  if (!date) return ''
-  const now = new Date()
-  const d = new Date(date)
-
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const msgDay = new Date(d.getFullYear(), d.getMonth(), d.getDate())
-
-  const diffDays = Math.round((today - msgDay) / (1000 * 60 * 60 * 24))
-
+  if (!date || !process.client) return ''
+  const nairobiDate = toNairobi(date)
+  const nowNairobi = toNairobi(new Date().toISOString())
+  const todayMidnight = new Date(nowNairobi.getFullYear(), nowNairobi.getMonth(), nowNairobi.getDate())
+  const msgMidnight = new Date(nairobiDate.getFullYear(), nairobiDate.getMonth(), nairobiDate.getDate())
+  const diffDays = Math.round((todayMidnight - msgMidnight) / (1000 * 60 * 60 * 24))
   if (diffDays === 0) return formatTime(date)
   if (diffDays === 1) return 'Yesterday'
-  if (diffDays <= 7) return d.toLocaleDateString('en-KE', { weekday: 'long' })
-  return d.toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })
+  if (diffDays <= 7) return nairobiDate.toLocaleDateString('en-KE', { weekday: 'long' })
+  return nairobiDate.toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+const toggleSpam = async (conv) => {
+  if (!conv) return
+  const isInitiator = conv.initiator_id === user.id
+  const spamField = isInitiator ? 'initiator_spam' : 'recipient_spam'
+  const currentValue = isSpamForMe(conv)
+
+  const { error } = await supabase
+    .from('conversations')
+    .update({ [spamField]: !currentValue })
+    .eq('id', conv.id)
+    .select()
+
+  if (!error && !currentValue) {
+    await supabase
+      .from('messages')
+      .update({ read: true })
+      .eq('conversation_id', conv.id)
+      .neq('sender_id', user.id)
+  }
+
+  if (!error) {
+    await refresh()
+    await refreshMeta()
+    if (!currentValue) {
+      activeConversationId.value = null
+      router.replace({ query: {} })
+    }
+  }
+}
+
+const deleteConversation = async (conv) => {
+  if (!confirm('Delete this conversation? This cannot be undone.')) return
+  await supabase.from('conversations').delete().eq('id', conv.id)
+  activeConversationId.value = null
+  showMenu.value = false
+  router.replace({ query: {} })
+  await refresh()
 }
 
 const router = useRouter()
 const route = useRoute()
 const activeConversationId = ref(route.query.id ? parseInt(route.query.id) : null)
+const showContact = ref(false)
+const showMenu = ref(false)
+
 
 const openConversation = (id) => {
   activeConversationId.value = id
+  showContact.value = false
+  showMenu.value = false
+  contactViewedAt.value = null
   router.replace({ query: { id } })
 }
 
+const contactViewedAt = ref(null) // stores display string like "8:11 PM"
+
+const revealContact = () => {
+  showContact.value = true
+  const d = new Date() // ← just use local time directly, no offset needed
+  const hours = d.getHours()
+  const minutes = d.getMinutes().toString().padStart(2, '0')
+  const ampm = hours >= 12 ? 'PM' : 'AM'
+  const h = hours % 12 || 12
+  contactViewedAt.value = `${h}:${minutes} ${ampm}`
+}
 const activeConversation = computed(() =>
   conversations.value?.find(c => c.id === activeConversationId.value) ?? null
 )
 
 const unreadCount = computed(() =>
-  Object.values(messageMeta.value ?? {}).filter(m => m.unread > 0).length
+  (conversations.value ?? []).filter(c =>
+    !isSpamForMe(c) && (messageMeta.value?.[c.id]?.unread ?? 0) > 0
+  ).length
+)
+
+const spamCount = computed(() =>
+  (conversations.value ?? []).filter(c =>
+    isSpamForMe(c) && (messageMeta.value?.[c.id]?.unread ?? 0) > 0
+  ).length
 )
 
 onMounted(() => {
   const interval = setInterval(() => { refresh(); refreshMeta() }, 5000)
   onUnmounted(() => clearInterval(interval))
+})
+
+onMounted(() => {
+  const interval = setInterval(() => { refresh(); refreshMeta() }, 5000)
+  onUnmounted(() => clearInterval(interval))
+
+  // Close menu when clicking anywhere on the page
+  const closeMenu = () => { showMenu.value = false }
+  document.addEventListener('click', closeMenu)
+  onUnmounted(() => document.removeEventListener('click', closeMenu))
 })
 </script>
 
@@ -120,12 +218,15 @@ onMounted(() => {
   <div class="bg-gray-100 min-h-screen">
     <div class="max-w-6xl mx-auto px-4 py-8">
 
-      <div v-if="conversations?.length" class="bg-white rounded-2xl p-20 text-center shadow-sm">
+      <!-- Empty state -->
+      <div v-if="!conversations?.length"
+        class="bg-white rounded-2xl p-20 text-center shadow-sm">
         <div class="text-5xl mb-4">💬</div>
         <p class="text-gray-500 font-semibold">No conversations yet</p>
         <p class="text-gray-400 text-sm mt-1">Start a conversation from any listing page</p>
       </div>
 
+      <!-- Inbox -->
       <div v-else class="bg-white rounded-2xl shadow-sm overflow-hidden flex" style="min-height: 600px;">
 
         <!-- Left panel -->
@@ -158,24 +259,39 @@ onMounted(() => {
                 class="ml-1 bg-green-500 text-white text-xs rounded-full px-1.5">
                 {{ unreadCount }}
               </span>
+              <span v-if="tab === 'spam' && spamCount > 0"
+                class="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5">
+                {{ spamCount }}
+              </span>
             </button>
           </div>
 
           <!-- Conversation list -->
           <div class="flex-1 overflow-y-auto">
-            <div v-if="filteredConversations.length === 0" class="py-16 text-center text-gray-400 text-sm">
+            <div v-if="filteredConversations.length === 0"
+              class="py-16 text-center text-gray-400 text-sm">
               No conversations found
             </div>
 
             <div v-for="conv in filteredConversations" :key="conv.id"
               @click="openConversation(conv.id)"
-              class="flex gap-3 px-4 py-3.5 border-b cursor-pointer hover:bg-gray-50 transition relative"
-              :class="activeConversationId === conv.id ? 'bg-green-50 border-l-4 border-l-green-500' : 'border-l-4 border-l-transparent'">
+              class="flex gap-3 px-4 py-3.5 border-b cursor-pointer hover:bg-gray-50 transition"
+              :class="[
+                activeConversationId === conv.id
+                  ? 'bg-green-50 border-l-4 border-l-green-500'
+                  : 'border-l-4 border-l-transparent',
+                isSpamForMe(conv) ? 'opacity-60' : ''
+              ]">
 
-              <!-- Avatar -->
-              <div class="w-11 h-11 rounded-full overflow-hidden shrink-0 bg-green-100 flex items-center justify-center text-lg font-bold text-green-600">
-                <img v-if="otherPerson(conv)?.avatar_url" :src="otherPerson(conv).avatar_url" class="w-full h-full object-cover" />
-                <span v-else>{{ otherPerson(conv)?.name?.[0]?.toUpperCase() ?? '?' }}</span>
+              <!-- Product image thumbnail -->
+              <div class="w-14 h-14 rounded-lg overflow-hidden shrink-0 bg-gray-100">
+                <img v-if="conv.products?.image_url"
+                  :src="conv.products.image_url"
+                  class="w-full h-full object-cover" />
+                <div v-else
+                  class="w-full h-full flex items-center justify-center text-2xl bg-green-50">
+                  🌾
+                </div>
               </div>
 
               <!-- Info -->
@@ -188,7 +304,9 @@ onMounted(() => {
                     {{ smartDate(messageMeta?.[conv.id]?.lastAt ?? conv.created_at) }}
                   </span>
                 </div>
-                <p class="text-xs text-gray-500 truncate mt-0.5">{{ conv.products?.title }}</p>
+                <p class="text-xs text-green-600 font-medium truncate mt-0.5">
+                  {{ conv.products?.title }}
+                </p>
                 <div class="flex justify-between items-center mt-0.5">
                   <p class="text-xs text-gray-400 truncate">
                     {{ messageMeta?.[conv.id]?.lastMessage ?? 'No messages yet' }}
@@ -199,16 +317,16 @@ onMounted(() => {
                   </span>
                 </div>
               </div>
-
             </div>
           </div>
         </div>
 
         <!-- Right panel -->
-        <div class="flex-1 flex flex-col">
+        <div class="flex-1 flex flex-col min-w-0">
 
           <!-- No conversation selected -->
-          <div v-if="!activeConversation" class="flex-1 flex items-center justify-center">
+          <div v-if="!activeConversation"
+            class="flex-1 flex items-center justify-center">
             <div class="text-center text-gray-400">
               <div class="text-5xl mb-3">💬</div>
               <p class="font-medium text-gray-500">Select a conversation</p>
@@ -218,26 +336,85 @@ onMounted(() => {
 
           <!-- Active conversation -->
           <template v-else>
-            <!-- Conversation header -->
-            <div class="flex items-center gap-3 px-6 py-4 border-b">
-              <div class="w-10 h-10 rounded-full overflow-hidden shrink-0 bg-green-100 flex items-center justify-center text-lg font-bold text-green-600">
+
+            <!-- Seller header (like Jiji top bar) -->
+            <div class="flex items-center gap-3 px-5 py-3 border-b bg-white">
+              <!-- Seller avatar -->
+              <div class="w-10 h-10 rounded-full overflow-hidden shrink-0 bg-green-100 flex items-center justify-center text-base font-bold text-green-600">
                 <img v-if="otherPerson(activeConversation)?.avatar_url"
-                  :src="otherPerson(activeConversation).avatar_url" class="w-full h-full object-cover" />
-                <span v-else>{{ otherPerson(activeConversation)?.name?.[0]?.toUpperCase() ?? '?' }}</span>
+                  :src="otherPerson(activeConversation).avatar_url"
+                  class="w-full h-full object-cover" />
+                <span v-else>
+                  {{ otherPerson(activeConversation)?.name?.[0]?.toUpperCase() ?? '?' }}
+                </span>
               </div>
-              <div class="flex-1">
-                <p class="font-bold text-gray-800">{{ otherPerson(activeConversation)?.name ?? 'User' }}</p>
-                <p class="text-xs text-green-600 truncate">{{ activeConversation.products?.title }}</p>
+              <p class="font-bold text-gray-800 flex-1 truncate">
+                {{ otherPerson(activeConversation)?.name ?? 'User' }}
+              </p>
+<!-- Three dot menu -->
+<div class="relative">
+  <button @click.stop="showMenu = !showMenu"
+    class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition text-gray-500 text-xl leading-none">
+    ⋮
+  </button>
+  <div v-if="showMenu"
+    class="absolute right-0 top-10 bg-white rounded-xl shadow-lg border border-gray-100 w-52 z-50 overflow-hidden">
+    <NuxtLink :to="`/listings/${activeConversation.listing_id}`"
+      @click="showMenu = false"
+      class="flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gray-50 transition">
+      🔗 View listing
+    </NuxtLink>
+    <button @click.stop="toggleSpam(activeConversation); showMenu = false"
+      class="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gray-50 transition">
+      ⚑ {{ isSpamForMe(activeConversation) ? 'Remove from spam' : 'Move to spam' }}
+    </button>
+    <button @click.stop="deleteConversation(activeConversation)"
+      class="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition">
+      🗑️ Delete chat
+    </button>
+  </div>
+</div>
+            </div>
+
+            <!-- Listing banner (like Jiji) -->
+            <div class="flex items-center gap-3 px-4 py-3 bg-gray-50 border-b">
+              <div class="w-12 h-10 rounded-lg overflow-hidden shrink-0 bg-gray-200">
+                <img v-if="activeConversation.products?.image_url"
+                  :src="activeConversation.products.image_url"
+                  class="w-full h-full object-cover" />
+                <div v-else class="w-full h-full flex items-center justify-center text-lg">🌾</div>
               </div>
-              <!-- Listing thumbnail -->
-              <div v-if="activeConversation.products?.image_url"
-                class="w-12 h-10 rounded-lg overflow-hidden shrink-0 bg-gray-100">
-                <img :src="activeConversation.products.image_url" class="w-full h-full object-cover" />
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-semibold text-gray-800 truncate">
+                  {{ activeConversation.products?.title }}
+                </p>
+                <p class="text-sm font-bold text-green-600">
+                  KSh {{ Number(activeConversation.products?.price).toLocaleString('en-KE') }}
+                </p>
+              </div>
+              <!-- Show contact button -->
+              <div class="shrink-0">
+                <button v-if="!showContact"
+                  @click="revealContact"
+                  class="flex items-center gap-2 border border-green-500 text-green-600 hover:bg-green-50 text-sm font-semibold px-4 py-2 rounded-xl transition">
+                  📞 Show contact
+                </button>
+                <a v-else
+                  :href="`tel:${otherPerson(activeConversation)?.phone}`"
+                  class="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition">
+                  📞 {{ otherPerson(activeConversation)?.phone ?? 'No phone' }}
+                </a>
               </div>
             </div>
 
             <!-- Messages -->
-            <MessageDrawer :conversation="activeConversation" :user="user" :inline="true" />
+            <MessageDrawer
+              :conversation="activeConversation"
+              :user="user"
+              :inline="true"
+              :is-spam="isSpamForMe(activeConversation)"
+              :contact-viewed-at="contactViewedAt"
+              :contact-name="otherPerson(activeConversation)?.name" />
           </template>
 
         </div>

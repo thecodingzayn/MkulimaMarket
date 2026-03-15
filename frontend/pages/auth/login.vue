@@ -28,6 +28,7 @@ const login = async () => {
 
   // Check if admin and redirect accordingly
   const { data: { session } } = await supabase.auth.getSession()
+
   const { data: profile } = await supabase
     .from('profiles')
     .select('is_admin')
@@ -41,6 +42,25 @@ const login = async () => {
   }
 
   loading.value = false
+}
+
+
+// GOOGLE LOGIN (must be outside login)
+const loginWithGoogle = async () => {
+  loading.value = true
+  error.value = ''
+
+  const { error: oauthError } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.origin
+    }
+  })
+
+  if (oauthError) {
+    error.value = oauthError.message
+    loading.value = false
+  }
 }
 </script>
 
@@ -82,7 +102,7 @@ const login = async () => {
           <NuxtLink to="/auth/forgot-password" class="text-sm text-green-600 hover:underline">
             Forgot password?
           </NuxtLink>
-        </div>
+        </div>        
 
         <button
           @click="login"
@@ -91,6 +111,19 @@ const login = async () => {
         >
           {{ loading ? 'Signing in...' : 'Sign In' }}
         </button>
+
+        <div class="text-center text-sm text-gray-400">or</div>
+
+        <button
+  @click="loginWithGoogle"
+  class="w-full border border-gray-300 bg-white hover:bg-gray-50 py-3 rounded-lg font-semibold flex items-center justify-center gap-2"
+>
+  <img
+    src="https://www.svgrepo.com/show/475656/google-color.svg"
+    class="w-5 h-5"
+  />
+  Continue with Google
+</button>
       </div>
 
       <p class="text-center text-sm text-gray-500 mt-6">

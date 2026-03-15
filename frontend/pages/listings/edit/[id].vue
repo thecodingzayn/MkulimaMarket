@@ -135,6 +135,7 @@ const saveChanges = async () => {
   category: form.value.category,
   image_url: imageUrl,
   status: 'reviewing',       // ← resubmit for review
+  review_reason: 'updated_listing', // ← new reason for edits
   rejection_reason: null,    // ← clear old rejection reason
 }
 

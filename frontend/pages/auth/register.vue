@@ -48,6 +48,25 @@ const register = async () => {
   router.push('/')
   loading.value = false
 }
+
+
+// GOOGLE LOGIN (must be outside register)
+const loginWithGoogle = async () => {
+  loading.value = true
+  error.value = ''
+
+  const { error: oauthError } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.origin
+    }
+  })
+
+  if (oauthError) {
+    error.value = oauthError.message
+    loading.value = false
+  }
+}
 </script>
 
 <template>
@@ -123,7 +142,9 @@ const register = async () => {
             placeholder="Min 6 characters"
             class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
           />
-        </div>
+        </div>       
+
+
 
         <button
           @click="register"
@@ -133,6 +154,19 @@ const register = async () => {
           {{ loading ? 'Creating account...' : 'Create Account' }}
         </button>
       </div>
+
+      <div class="text-center text-sm text-gray-400">or</div>
+
+      <button
+  @click="loginWithGoogle"
+  class="w-full border border-gray-300 bg-white hover:bg-gray-50 py-3 rounded-lg font-semibold flex items-center justify-center gap-2"
+>
+  <img
+    src="https://www.svgrepo.com/show/475656/google-color.svg"
+    class="w-5 h-5"
+  />
+  Continue with Google
+</button>
 
       <!-- Login link -->
       <p class="text-center text-sm text-gray-500 mt-6">

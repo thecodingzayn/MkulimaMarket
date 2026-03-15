@@ -51,8 +51,16 @@ const actionLoading = ref(null)
 const approveListing = async (id) => {
   actionLoading.value = id
   await supabase.from('products')
-    .update({ status: 'active', rejection_reason: null })
+    .update({ status: 'active', rejection_reason: null, review_reason: null })
     .eq('id', id)
+  await refresh()
+  actionLoading.value = null
+}
+
+const deleteListing = async (id) => {
+  if (!confirm('Are you sure you want to permanently delete this listing?')) return
+  actionLoading.value = id
+  await supabase.from('products').delete().eq('id', id)
   await refresh()
   actionLoading.value = null
 }
@@ -69,7 +77,8 @@ const confirmReject = async () => {
   await supabase.from('products')
     .update({
       status: 'rejected',
-      rejection_reason: rejectReason.value || 'Did not meet our guidelines.'
+      rejection_reason: rejectReason.value || 'Did not meet our guidelines.',
+      review_reason: null
     })
     .eq('id', rejectTarget.value.id)
   rejectModal.value = false
@@ -77,6 +86,13 @@ const confirmReject = async () => {
   rejectReason.value = ''
   await refresh()
   actionLoading.value = null
+}
+
+const reviewReasonLabel = (reason) => {
+  if (reason === 'flagged_unavailable') return { text: '🚩 Flagged unavailable', class: 'bg-red-100 text-red-600' }
+  if (reason === 'updated_listing') return { text: '✏️ Updated listing', class: 'bg-blue-100 text-blue-600' }
+  if (reason === 'new_listing') return { text: '🆕 New listing', class: 'bg-orange-100 text-orange-600' }
+  return { text: '🔄 Under review', class: 'bg-gray-100 text-gray-500' }
 }
 
 const timeAgo = (date) => {
@@ -166,15 +182,22 @@ const timeAgo = (date) => {
             <!-- Info -->
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
-                 <NuxtLink :to="`/listings/${listing.id}`" target="_blank"
-    class="font-semibold text-gray-800 hover:text-green-600 transition hover:underline">
-    {{ listing.title }}
-  </NuxtLink>
+                <NuxtLink :to="`/listings/${listing.id}`" target="_blank"
+                  class="font-semibold text-gray-800 hover:text-green-600 transition hover:underline">
+                  {{ listing.title }}
+                </NuxtLink>
                 <span class="text-xs px-2 py-0.5 rounded-full font-semibold"
                   :class="listing.status === 'active' ? 'bg-green-100 text-green-700'
                     : listing.status === 'reviewing' ? 'bg-orange-100 text-orange-600'
                     : 'bg-red-100 text-red-600'">
                   {{ listing.status }}
+                </span>
+
+                <!-- Review reason badge -->
+                <span v-if="listing.status === 'reviewing' && listing.review_reason"
+                  class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                  :class="reviewReasonLabel(listing.review_reason).class">
+                  {{ reviewReasonLabel(listing.review_reason).text }}
                 </span>
               </div>
 
@@ -190,6 +213,12 @@ const timeAgo = (date) => {
                 <span>🕒 {{ timeAgo(listing.created_at) }}</span>
               </div>
 
+              <!-- Flagged unavailable explanation -->
+              <div v-if="listing.review_reason === 'flagged_unavailable'"
+                class="mt-2 bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-xs text-red-600">
+                🚩 A user reported this listing as no longer available. Please verify and approve or reject.
+              </div>
+
               <!-- Rejection reason -->
               <div v-if="listing.status === 'rejected' && listing.rejection_reason"
                 class="mt-2 bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-xs text-red-600">
@@ -197,39 +226,46 @@ const timeAgo = (date) => {
               </div>
             </div>
 
-            <!-- Actions -->
-            <div class="flex flex-col gap-2 shrink-0 justify-center">
+<!-- Actions -->
+<div class="flex flex-col gap-2 shrink-0 justify-center">
 
-              <template v-if="listing.status === 'reviewing'">
-                <button @click="approveListing(listing.id)"
-                  :disabled="actionLoading === listing.id"
-                  class="flex items-center justify-center gap-1 bg-green-500 hover:bg-green-600 text-white text-sm px-4 py-2 rounded-lg transition font-semibold disabled:opacity-50">
-                  {{ actionLoading === listing.id ? '...' : '✅ Approve' }}
-                </button>
-                <button @click="openRejectModal(listing)"
-                  :disabled="actionLoading === listing.id"
-                  class="flex items-center justify-center gap-1 bg-red-50 hover:bg-red-100 text-red-500 text-sm px-4 py-2 rounded-lg transition font-semibold disabled:opacity-50">
-                  ❌ Reject
-                </button>
-              </template>
+  <template v-if="listing.status === 'reviewing'">
+    <button @click="approveListing(listing.id)"
+      :disabled="actionLoading === listing.id"
+      class="flex items-center justify-center gap-1 bg-green-500 hover:bg-green-600 text-white text-sm px-4 py-2 rounded-lg transition font-semibold disabled:opacity-50">
+      {{ actionLoading === listing.id ? '...' : '✅ Approve' }}
+    </button>
+    <button @click="openRejectModal(listing)"
+      :disabled="actionLoading === listing.id"
+      class="flex items-center justify-center gap-1 bg-red-50 hover:bg-red-100 text-red-500 text-sm px-4 py-2 rounded-lg transition font-semibold disabled:opacity-50">
+      ❌ Reject
+    </button>
+  </template>
 
-              <template v-else-if="listing.status === 'rejected'">
-                <button @click="approveListing(listing.id)"
-                  :disabled="actionLoading === listing.id"
-                  class="flex items-center justify-center gap-1 bg-green-50 hover:bg-green-100 text-green-600 text-sm px-4 py-2 rounded-lg transition font-semibold disabled:opacity-50">
-                  {{ actionLoading === listing.id ? '...' : '✅ Approve' }}
-                </button>
-              </template>
+  <template v-else-if="listing.status === 'rejected'">
+    <button @click="approveListing(listing.id)"
+      :disabled="actionLoading === listing.id"
+      class="flex items-center justify-center gap-1 bg-green-50 hover:bg-green-100 text-green-600 text-sm px-4 py-2 rounded-lg transition font-semibold disabled:opacity-50">
+      {{ actionLoading === listing.id ? '...' : '✅ Approve' }}
+    </button>
+  </template>
 
-              <template v-else-if="listing.status === 'active'">
-                <button @click="openRejectModal(listing)"
-                  :disabled="actionLoading === listing.id"
-                  class="flex items-center justify-center gap-1 bg-red-50 hover:bg-red-100 text-red-500 text-sm px-4 py-2 rounded-lg transition font-semibold disabled:opacity-50">
-                  ❌ Reject
-                </button>
-              </template>
+  <template v-else-if="listing.status === 'active'">
+    <button @click="openRejectModal(listing)"
+      :disabled="actionLoading === listing.id"
+      class="flex items-center justify-center gap-1 bg-red-50 hover:bg-red-100 text-red-500 text-sm px-4 py-2 rounded-lg transition font-semibold disabled:opacity-50">
+      ❌ Reject
+    </button>
+  </template>
 
-            </div>
+  <!-- Delete button — shown for all statuses -->
+  <button @click="deleteListing(listing.id)"
+    :disabled="actionLoading === listing.id"
+    class="flex items-center justify-center gap-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm px-4 py-2 rounded-lg transition font-semibold disabled:opacity-50">
+    🗑️ Delete
+  </button>
+
+</div>
           </div>
         </div>
       </div>
@@ -245,6 +281,14 @@ const timeAgo = (date) => {
         <p class="text-sm text-gray-500 mb-4">
           Rejecting: <span class="font-semibold text-gray-700">{{ rejectTarget?.title }}</span>
         </p>
+
+        <!-- Show review reason in reject modal too -->
+        <div v-if="rejectTarget?.review_reason"
+          class="mb-4 px-3 py-2 rounded-lg text-xs font-semibold"
+          :class="reviewReasonLabel(rejectTarget.review_reason).class">
+          {{ reviewReasonLabel(rejectTarget.review_reason).text }}
+        </div>
+
         <label class="text-sm font-semibold text-gray-700 mb-2 block">Reason for rejection</label>
         <textarea v-model="rejectReason" rows="3"
           placeholder="e.g. Image is unclear, price is missing, prohibited item..."

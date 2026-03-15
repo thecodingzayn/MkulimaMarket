@@ -4,7 +4,7 @@ const props = defineProps({
   currentPrice: Number,
   mode: {
     type: String,
-    default: 'badge' // 'badge' for listing page, 'suggest' for new listing
+    default: 'badge' // 'badge', 'suggest', 'sidebar'
   }
 })
 
@@ -33,7 +33,6 @@ const priceLabel = computed(() => {
   return { text: 'Fair price', color: 'text-blue-500' }
 })
 
-// Simple SVG chart path from history data
 const chartPath = computed(() => {
   const hist = data.value?.history
   if (!hist?.length) return ''
@@ -54,8 +53,24 @@ const chartPath = computed(() => {
 <template>
   <div v-if="!pending && data">
 
-    <!-- BADGE MODE: shown on listing page -->
-    <template v-if="mode === 'badge'">
+    <!-- SIDEBAR MODE: compact single line like Jiji -->
+    <template v-if="mode === 'sidebar'">
+      <div v-if="data.live?.min && data.live?.max"
+        class="text-sm text-gray-600 border border-gray-100 rounded-lg px-3 py-2 bg-gray-50">
+        <span class="text-gray-500">Market price: </span>
+        <span class="font-semibold text-blue-600">
+          {{ formatPrice(data.live.min) }} ~ {{ formatPrice(data.live.max) }}
+        </span>
+        <span v-if="priceLabel"
+          class="ml-2 text-xs font-medium"
+          :class="priceLabel.color">
+          · {{ priceLabel.text }}
+        </span>
+      </div>
+    </template>
+
+    <!-- BADGE MODE: shown on listing page left column -->
+    <template v-else-if="mode === 'badge'">
       <div v-if="data.live?.min && data.live?.max"
         class="inline-flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-1.5 text-sm">
         <span class="text-blue-400">📊</span>
@@ -75,11 +90,8 @@ const chartPath = computed(() => {
           📈 {{ category }} price trend (last {{ data.history.length }} days)
         </p>
         <svg viewBox="0 0 300 60" class="w-full h-16" preserveAspectRatio="none">
-          <!-- Grid lines -->
           <line x1="0" y1="30" x2="300" y2="30" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="4"/>
-          <!-- Trend line -->
           <path :d="chartPath" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <!-- Current price marker -->
           <line v-if="pricePosition !== null"
             :x1="pricePosition * 3" y1="0"
             :x2="pricePosition * 3" y2="60"
