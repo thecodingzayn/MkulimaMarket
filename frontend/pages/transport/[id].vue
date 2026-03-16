@@ -15,7 +15,7 @@ const { data: request } = await useAsyncData('transport-request', async () => {
   const { data: profile } = await supabase
     .from('profiles')
     .select('name, phone, location')
-    .eq('id', data.user_id)  // ← was farmer_id
+    .eq('id', data.user_id)
     .single()
 
   return { ...data, profiles: profile ?? null }
@@ -31,18 +31,18 @@ const { data: applications, refresh: refreshApps } = await useAsyncData('applica
 
   if (!data?.length) return []
 
-  const userIds = [...new Set(data.map(a => a.user_id))]  // ← was transporter_id
+  const userIds = [...new Set(data.map(a => a.user_id))]
   const { data: profiles } = await supabase
     .from('profiles')
     .select('id, name, phone')
     .in('id', userIds)
 
   const profileMap = Object.fromEntries(profiles?.map(p => [p.id, p]) ?? [])
-  return data.map(a => ({ ...a, profiles: profileMap[a.user_id] ?? null }))  // ← was transporter_id
+  return data.map(a => ({ ...a, profiles: profileMap[a.user_id] ?? null }))
 })
 
-const isOwner = computed(() => user?.id === request.value?.user_id)  // ← was farmer_id
-const hasApplied = computed(() => applications.value?.some(a => a.user_id === user?.id))  // ← was transporter_id
+const isOwner = computed(() => user?.id === request.value?.user_id)
+const hasApplied = computed(() => applications.value?.some(a => a.user_id === user?.id))
 
 const appForm = ref({ message: '', price_offer: '' })
 const appLoading = ref(false)
@@ -54,7 +54,7 @@ const applyNow = async () => {
   appError.value = ''
   const { error } = await supabase.from('transport_applications').insert({
     request_id: Number(route.params.id),
-    user_id : user.id,
+    user_id: user.id,
     message: appForm.value.message || null,
     price_offer: appForm.value.price_offer ? Number(appForm.value.price_offer) : null
   })
@@ -76,7 +76,6 @@ const formatDate = (d) => new Date(d).toLocaleDateString('en-KE', {
   day: 'numeric', month: 'long', year: 'numeric'
 })
 
-// Mark transport notifications as read for this specific request
 onMounted(async () => {
   const { data: { user: u } } = await supabase.auth.getUser()
   if (!u?.id) return
@@ -92,21 +91,23 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="bg-gray-100 min-h-screen py-8">
-    <div class="max-w-3xl mx-auto px-4">
+  <div class="bg-gray-100 min-h-screen py-4 md:py-8">
+    <div class="max-w-3xl mx-auto px-3 md:px-4">
+
       <button @click="$router.back()"
-        class="text-gray-500 hover:text-green-600 mb-6 flex items-center gap-2 transition">
+        class="text-gray-500 hover:text-green-600 mb-4 md:mb-6 flex items-center gap-2 transition text-sm md:text-base">
         ← Back to requests
       </button>
 
-      <div v-if="request" class="space-y-4">
+      <div v-if="request" class="space-y-3 md:space-y-4">
+
         <!-- Request details -->
-        <div class="bg-white rounded-2xl shadow-sm p-6">
+        <div class="bg-white rounded-2xl shadow-sm p-4 md:p-6">
           <div class="flex justify-between items-start flex-wrap gap-2 mb-4">
-            <h1 class="text-xl font-bold text-gray-800">
+            <h1 class="text-base md:text-xl font-bold text-gray-800 flex-1 min-w-0 pr-2">
               {{ request.pickup_location }} → {{ request.destination }}
             </h1>
-            <span class="text-sm px-3 py-1 rounded-full font-semibold"
+            <span class="text-xs md:text-sm px-2 md:px-3 py-1 rounded-full font-semibold shrink-0"
               :class="request.status === 'open' ? 'bg-green-100 text-green-700'
                 : request.status === 'assigned' ? 'bg-blue-100 text-blue-700'
                 : 'bg-gray-100 text-gray-500'">
@@ -114,36 +115,42 @@ onMounted(async () => {
             </span>
           </div>
 
-          <div class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-            <div class="bg-gray-50 rounded-xl p-3">
+          <!-- Info grid — 2 cols on mobile, 3 on md -->
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 text-sm">
+            <div class="bg-gray-50 rounded-xl p-2.5 md:p-3">
               <p class="text-gray-400 text-xs mb-1">Cargo</p>
-              <p class="font-semibold text-gray-700">{{ request.cargo_type }}</p>
+              <p class="font-semibold text-gray-700 text-xs md:text-sm">{{ request.cargo_type }}</p>
             </div>
-            <div class="bg-gray-50 rounded-xl p-3">
+            <div class="bg-gray-50 rounded-xl p-2.5 md:p-3">
               <p class="text-gray-400 text-xs mb-1">Quantity</p>
-              <p class="font-semibold text-gray-700">{{ request.quantity }}</p>
+              <p class="font-semibold text-gray-700 text-xs md:text-sm">{{ request.quantity }}</p>
             </div>
-            <div class="bg-gray-50 rounded-xl p-3">
+            <div class="bg-gray-50 rounded-xl p-2.5 md:p-3">
               <p class="text-gray-400 text-xs mb-1">Date</p>
-              <p class="font-semibold text-gray-700">{{ formatDate(request.preferred_date) }}</p>
+              <p class="font-semibold text-gray-700 text-xs md:text-sm">{{ formatDate(request.preferred_date) }}</p>
             </div>
-            <div v-if="request.preferred_time" class="bg-gray-50 rounded-xl p-3">
+            <div v-if="request.preferred_time" class="bg-gray-50 rounded-xl p-2.5 md:p-3">
               <p class="text-gray-400 text-xs mb-1">Time</p>
-              <p class="font-semibold text-gray-700">{{ request.preferred_time }}</p>
+              <p class="font-semibold text-gray-700 text-xs md:text-sm">{{ request.preferred_time }}</p>
             </div>
-            <div v-if="request.budget" class="bg-green-50 rounded-xl p-3">
+            <div v-if="request.budget" class="bg-green-50 rounded-xl p-2.5 md:p-3">
               <p class="text-gray-400 text-xs mb-1">Budget</p>
-              <p class="font-semibold text-green-700">KSh {{ Number(request.budget).toLocaleString('en-KE') }}</p>
+              <p class="font-semibold text-green-700 text-xs md:text-sm">
+                KSh {{ Number(request.budget).toLocaleString('en-KE') }}
+              </p>
             </div>
-            <div class="bg-gray-50 rounded-xl p-3">
+            <div class="bg-gray-50 rounded-xl p-2.5 md:p-3">
               <p class="text-gray-400 text-xs mb-1">Contact</p>
               <a :href="`tel:${request.contact_phone}`"
-                class="font-semibold text-blue-600">{{ request.contact_phone }}</a>
+                class="font-semibold text-blue-600 text-xs md:text-sm">
+                {{ request.contact_phone }}
+              </a>
             </div>
           </div>
 
-          <div class="border-t mt-4 pt-4 flex items-center gap-3">
-            <div class="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center">👤</div>
+          <!-- Requester info -->
+          <div class="border-t mt-3 md:mt-4 pt-3 md:pt-4 flex items-center gap-3">
+            <div class="w-8 h-8 md:w-9 md:h-9 rounded-full bg-green-100 flex items-center justify-center text-sm">👤</div>
             <div>
               <p class="font-semibold text-gray-700 text-sm">{{ request.profiles?.name }}</p>
               <p class="text-xs text-gray-400">📍 {{ request.profiles?.location }}</p>
@@ -151,10 +158,10 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- Apply form (non-owner, not yet applied) -->
+        <!-- Apply form -->
         <div v-if="!isOwner && user && !hasApplied && request.status === 'open'"
-          class="bg-white rounded-2xl shadow-sm p-6">
-          <h2 class="font-bold text-gray-800 mb-4">Apply for this job</h2>
+          class="bg-white rounded-2xl shadow-sm p-4 md:p-6">
+          <h2 class="font-bold text-gray-800 mb-3 md:mb-4 text-base md:text-lg">Apply for this job</h2>
           <div class="space-y-3">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Your price offer (KSh)</label>
@@ -162,7 +169,9 @@ onMounted(async () => {
                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Message <span class="text-gray-400">(optional)</span></label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                Message <span class="text-gray-400">(optional)</span>
+              </label>
               <textarea v-model="appForm.message" rows="3"
                 placeholder="Describe your vehicle, capacity, experience..."
                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none" />
@@ -175,30 +184,33 @@ onMounted(async () => {
           </div>
         </div>
 
+        <!-- Success message -->
         <div v-if="appSuccess"
-  class="bg-green-50 text-green-700 px-4 py-3 rounded-xl text-sm font-medium">
-  ✅ Application submitted! {{ request.profiles?.name ?? 'The requester' }} will contact you if selected.
-</div>
+          class="bg-green-50 text-green-700 px-4 py-3 rounded-xl text-sm font-medium">
+          ✅ Application submitted! {{ request.profiles?.name ?? 'The requester' }} will contact you if selected.
+        </div>
 
         <!-- Applications list (owner only) -->
-        <div v-if="isOwner && applications.length > 0" class="bg-white rounded-2xl shadow-sm p-6">
-          <h2 class="font-bold text-gray-800 mb-4">
+        <div v-if="isOwner && applications.length > 0"
+          class="bg-white rounded-2xl shadow-sm p-4 md:p-6">
+          <h2 class="font-bold text-gray-800 mb-3 md:mb-4 text-base md:text-lg">
             Applications
             <span class="text-sm font-normal text-gray-400 ml-1">({{ applications.length }})</span>
           </h2>
           <div class="space-y-3">
             <div v-for="app in applications" :key="app.id"
-              class="border border-gray-100 rounded-xl p-4">
+              class="border border-gray-100 rounded-xl p-3 md:p-4">
+
               <div class="flex justify-between items-start flex-wrap gap-2">
-                <div class="flex items-center gap-3">
-                  <div class="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center">🚛</div>
+                <div class="flex items-center gap-2 md:gap-3">
+                  <div class="w-8 h-8 md:w-9 md:h-9 rounded-full bg-blue-100 flex items-center justify-center text-sm">🚛</div>
                   <div>
                     <p class="font-semibold text-gray-700 text-sm">{{ app.profiles?.name }}</p>
                     <p class="text-xs text-gray-400">{{ app.profiles?.phone }}</p>
                   </div>
                 </div>
                 <div class="text-right">
-                  <p v-if="app.price_offer" class="font-bold text-green-600">
+                  <p v-if="app.price_offer" class="font-bold text-green-600 text-sm md:text-base">
                     KSh {{ Number(app.price_offer).toLocaleString('en-KE') }}
                   </p>
                   <span class="text-xs px-2 py-0.5 rounded-full"
@@ -209,15 +221,19 @@ onMounted(async () => {
                   </span>
                 </div>
               </div>
-              <p v-if="app.message" class="text-sm text-gray-500 mt-2 ml-12">{{ app.message }}</p>
+
+              <p v-if="app.message" class="text-sm text-gray-500 mt-2 ml-10 md:ml-12">
+                {{ app.message }}
+              </p>
+
               <div v-if="app.status === 'pending' && request.status === 'open'"
-                class="flex gap-2 mt-3 ml-12">
+                class="flex gap-2 mt-3 ml-10 md:ml-12">
                 <button @click="updateApplication(app.id, 'accepted')"
-                  class="px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg font-semibold transition">
+                  class="px-3 md:px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs md:text-sm rounded-lg font-semibold transition">
                   ✓ Accept
                 </button>
                 <button @click="updateApplication(app.id, 'rejected')"
-                  class="px-4 py-1.5 bg-red-50 hover:bg-red-100 text-red-500 text-sm rounded-lg font-semibold transition">
+                  class="px-3 md:px-4 py-1.5 bg-red-50 hover:bg-red-100 text-red-500 text-xs md:text-sm rounded-lg font-semibold transition">
                   ✕ Reject
                 </button>
               </div>
@@ -225,10 +241,12 @@ onMounted(async () => {
           </div>
         </div>
 
+        <!-- No applications yet -->
         <div v-else-if="isOwner && applications.length === 0"
-          class="bg-white rounded-2xl shadow-sm p-6 text-center text-sm text-gray-400">
+          class="bg-white rounded-2xl shadow-sm p-4 md:p-6 text-center text-sm text-gray-400">
           No applications yet. Share this page to get others to apply!
         </div>
+
       </div>
     </div>
   </div>

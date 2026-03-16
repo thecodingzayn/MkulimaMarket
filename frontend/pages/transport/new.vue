@@ -34,18 +34,22 @@ const submit = async () => {
 </script>
 
 <template>
-  <div class="bg-gray-100 min-h-screen py-8">
-    <div class="max-w-xl mx-auto px-4">
+  <div class="bg-gray-100 min-h-screen py-4 md:py-8">
+    <div class="max-w-xl mx-auto px-3 md:px-4">
       <button @click="$router.back()"
-        class="text-gray-500 hover:text-green-600 mb-6 flex items-center gap-2 transition">
+        class="text-gray-500 hover:text-green-600 mb-4 md:mb-6 flex items-center gap-2 transition text-sm md:text-base">
         ← Back
       </button>
 
-      <div class="bg-white rounded-2xl shadow-sm p-6">
-        <h1 class="text-xl font-bold text-gray-800 mb-6">🚛 Post a Transport Request</h1>
+      <div class="bg-white rounded-2xl shadow-sm p-4 md:p-6">
+        <h1 class="text-lg md:text-xl font-bold text-gray-800 mb-4 md:mb-6">
+          🚛 Post a Transport Request
+        </h1>
 
-        <div class="space-y-4">
-          <div class="grid grid-cols-2 gap-4">
+        <div class="space-y-3 md:space-y-4">
+
+          <!-- Pickup & Destination -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Pickup Location</label>
               <input v-model="form.pickup_location" type="text" placeholder="e.g. Eldoret"
@@ -58,7 +62,8 @@ const submit = async () => {
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-4">
+          <!-- Cargo Type & Quantity -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Cargo Type</label>
               <input v-model="form.cargo_type" type="text" placeholder="e.g. Maize, Tomatoes"
@@ -71,22 +76,30 @@ const submit = async () => {
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-4">
+          <!-- Date & Time -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Preferred Date</label>
               <input v-model="form.preferred_date" type="date"
                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Preferred Time <span class="text-gray-400">(optional)</span></label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                Preferred Time
+                <span class="text-gray-400">(optional)</span>
+              </label>
               <input v-model="form.preferred_time" type="time"
                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-4">
+          <!-- Budget & Phone -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Budget (KSh) <span class="text-gray-400">(optional)</span></label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                Budget (KSh)
+                <span class="text-gray-400">(optional)</span>
+              </label>
               <input v-model="form.budget" type="number" placeholder="e.g. 5000"
                 class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
             </div>
@@ -103,6 +116,7 @@ const submit = async () => {
             class="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white py-3 rounded-xl font-semibold transition text-sm">
             {{ loading ? 'Posting...' : '🚛 Post Request' }}
           </button>
+
         </div>
       </div>
     </div>

@@ -117,7 +117,7 @@ const timeAgo = (date) => {
         <span class="text-sm text-green-200">Admin Panel</span>
         <button @click="logout"
           class="bg-white text-green-700 hover:bg-green-50 text-sm font-semibold px-4 py-2 rounded-lg transition">
-          🚪 Logout
+          <Icon icon="mdi:logout" class="w-4 h-4 shrink-0" /> Logout
         </button>
       </div>
     </div>

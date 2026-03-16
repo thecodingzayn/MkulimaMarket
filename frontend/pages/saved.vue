@@ -30,7 +30,6 @@ const { data: savedListings, refresh } = await useAsyncData('saved', async () =>
   }))
 })
 
-// Single declaration — starts empty, only adds on click
 const revealedContacts = ref(new Set())
 
 const toggleContact = (id) => {
@@ -63,23 +62,26 @@ const timeAgo = (date) => {
     <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
 
       <!-- Header -->
-      <div class="flex items-center justify-between px-6 py-5 border-b">
-        <h1 class="text-xl font-bold text-gray-800">
+      <div class="flex items-center justify-between px-4 md:px-6 py-4 md:py-5 border-b">
+        <h1 class="text-base md:text-xl font-bold text-gray-800">
           My Saved
-          <span class="text-sm font-normal text-gray-400 ml-1">({{ savedListings.length }})</span>
+          <span class="text-xs md:text-sm font-normal text-gray-400 ml-1">
+            ({{ savedListings.length }})
+          </span>
         </h1>
         <button v-if="savedListings.length > 0"
           @click="async () => { for (const s of savedListings) await unsave(s.products.id) }"
-          class="text-sm text-green-600 hover:underline font-medium">
+          class="text-xs md:text-sm text-green-600 hover:underline font-medium">
           Clear all
         </button>
       </div>
 
       <!-- Empty state -->
-      <div v-if="savedListings.length === 0" class="py-24 text-center">
-        <div class="text-5xl mb-4">🔖</div>
-        <p class="text-gray-500 font-semibold">No saved listings yet</p>
-        <p class="text-gray-400 text-sm mt-1">Tap the bookmark icon on any listing to save it</p>
+      <div v-if="savedListings.length === 0" class="py-16 md:py-24 text-center px-4">        
+        <p class="text-gray-500 font-semibold text-sm md:text-base">No saved listings yet</p>
+        <p class="text-gray-400 text-xs md:text-sm mt-1">
+          Tap the bookmark icon on any listing to save it
+        </p>
         <NuxtLink to="/" class="mt-4 inline-block text-green-600 hover:underline text-sm">
           Browse listings →
         </NuxtLink>
@@ -88,67 +90,78 @@ const timeAgo = (date) => {
       <!-- List -->
       <div v-else class="divide-y">
         <div v-for="item in savedListings" :key="item.id"
-          class="flex items-center gap-5 px-6 py-4 hover:bg-gray-50 transition group relative">
+          class="flex flex-col sm:flex-row sm:items-center gap-3 md:gap-5 px-4 md:px-6 py-4 hover:bg-gray-50 transition group relative">
 
-          <!-- Image -->
-          <NuxtLink :to="`/listings/${item.products.id}`"
-            class="w-28 h-20 rounded-xl overflow-hidden shrink-0 bg-gray-100 border border-gray-100">
-            <img v-if="item.products.image_url"
-              :src="item.products.image_url"
-              class="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
-            <div v-else class="w-full h-full flex items-center justify-center text-3xl">🌾</div>
-          </NuxtLink>
+          <!-- Top row on mobile: image + details -->
+          <div class="flex items-start gap-3 sm:contents">
 
-          <!-- Details -->
-          <div class="flex-1 min-w-0">
-            <NuxtLink :to="`/listings/${item.products.id}`">
-              <h3 class="font-semibold text-gray-800 hover:text-green-600 transition leading-snug line-clamp-2">
-                {{ item.products.title }}
-              </h3>
+            <!-- Image -->
+            <NuxtLink :to="`/listings/${item.products.id}`"
+              class="w-20 h-16 sm:w-28 sm:h-20 rounded-xl overflow-hidden shrink-0 bg-gray-100 border border-gray-100">
+              <img v-if="item.products.image_url"
+                :src="item.products.image_url"
+                class="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+              <div v-else class="w-full h-full flex items-center justify-center text-2xl md:text-3xl">🌾</div>
             </NuxtLink>
-            <p class="text-green-600 font-bold text-base mt-1">
-              KSh {{ Number(item.products.price).toLocaleString('en-KE') }}
-            </p>
-            <div class="flex items-center gap-3 mt-1.5 flex-wrap">
-              <span class="text-xs text-gray-400">📍 {{ item.products.location }}</span>
-              <span class="text-xs text-gray-400">🌿 {{ item.products.category }}</span>
-              <span class="text-xs text-gray-400">🕒 Saved {{ timeAgo(item.created_at) }}</span>
+
+            <!-- Details -->
+            <div class="flex-1 min-w-0">
+              <NuxtLink :to="`/listings/${item.products.id}`">
+                <h3 class="font-semibold text-gray-800 hover:text-green-600 transition leading-snug line-clamp-2 text-sm md:text-base">
+                  {{ item.products.title }}
+                </h3>
+              </NuxtLink>
+              <p class="text-green-600 font-bold text-sm md:text-base mt-1">
+                KSh {{ Number(item.products.price).toLocaleString('en-KE') }}
+              </p>
+              <div class="flex items-center gap-2 mt-1 flex-wrap">
+                <span class="text-xs text-gray-400">📍 {{ item.products.location }}</span>
+                <span class="text-xs text-gray-400 hidden sm:inline">🌿 {{ item.products.category }}</span>
+                <span class="text-xs text-gray-400">🕒 {{ timeAgo(item.created_at) }}</span>
+              </div>
             </div>
           </div>
 
-          <!-- Actions — fade in on hover -->
-          <div class="flex flex-col gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 mr-6">
+          <!-- Actions -->
+          <!-- On mobile: always visible, stacked row -->
+          <!-- On desktop: fade in on hover, column -->
+          <div class="flex flex-row sm:flex-col gap-2 sm:shrink-0 sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity sm:duration-200 sm:mr-6">
 
             <NuxtLink :to="`/messages`"
-              class="w-40 py-2 text-center border-2 border-green-500 text-green-600 rounded-lg text-sm font-semibold hover:bg-green-50 transition">
+              class="flex-1 sm:w-36 md:w-40 py-2 text-center border-2 border-green-500 text-green-600 rounded-lg text-xs md:text-sm font-semibold hover:bg-green-50 transition">
               💬 Chat
             </NuxtLink>
 
-            <!-- Show contact → replaced by phone on click -->
             <button v-if="!revealedContacts.has(item.products.id)"
               @click="toggleContact(item.products.id)"
-              class="w-40 py-2 text-center bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-semibold transition">
-              📞 Show contact
+              class="flex-1 sm:w-36 md:w-40 py-2 text-center bg-green-500 hover:bg-green-600 text-white rounded-lg text-xs md:text-sm font-semibold transition">
+              📞 Contact
             </button>
 
             <a v-else-if="item.products.profile?.phone"
               :href="`tel:${formatPhone(item.products.profile.phone)}`"
-              class="w-40 py-2 text-center bg-green-500 hover:bg-green-600 text-white font-semibold text-sm rounded-lg transition flex items-center justify-center gap-1">
+              class="flex-1 sm:w-36 md:w-40 py-2 text-center bg-green-500 hover:bg-green-600 text-white font-semibold text-xs md:text-sm rounded-lg transition flex items-center justify-center gap-1">
               📞 {{ item.products.profile.phone }}
             </a>
 
             <div v-else
-              class="w-40 py-2 text-center text-xs text-gray-400 bg-gray-50 rounded-lg border border-gray-100">
+              class="flex-1 sm:w-36 md:w-40 py-2 text-center text-xs text-gray-400 bg-gray-50 rounded-lg border border-gray-100">
               No phone listed
             </div>
 
-            <!-- Remove -->
             <button @click="unsave(item.products.id)"
-              class="w-40 py-1.5 text-center text-xs text-gray-400 hover:text-red-400 border border-gray-200 hover:border-red-200 rounded-lg transition">
+              class="sm:w-36 md:w-40 py-1.5 text-center text-xs text-gray-400 hover:text-red-400 border border-gray-200 hover:border-red-200 rounded-lg transition hidden sm:block">
               ✕ Remove
             </button>
 
           </div>
+
+          <!-- Remove button on mobile — separate row -->
+          <button @click="unsave(item.products.id)"
+            class="sm:hidden text-xs text-gray-400 hover:text-red-400 text-left transition">
+            ✕ Remove from saved
+          </button>
+
         </div>
       </div>
 

@@ -32,6 +32,7 @@ const selectedCategory = ref('')
 const minPrice = ref('')
 const maxPrice = ref('')
 const showFilters = ref(false)
+const showCategories = ref(false)
 const quantitySearch = ref('')
 
 const categories = [
@@ -95,6 +96,7 @@ const filtered = computed(() => {
 
 const selectCategory = (name) => {
   selectedCategory.value = selectedCategory.value === name ? '' : name
+  showCategories.value = false
 }
 </script>
 
@@ -102,29 +104,32 @@ const selectCategory = (name) => {
   <div class="bg-gray-100 min-h-screen">
 
     <!-- Hero -->
-    <section class="bg-green-600 text-white py-16 rounded-b-3xl">
-      <div class="max-w-5xl mx-auto text-center">
-        <h2 class="text-3xl font-bold mb-6">What are you looking for?</h2>
+    <section class="bg-green-600 text-white py-8 md:py-16 rounded-b-3xl">
+      <div class="max-w-5xl mx-auto text-center px-4">
+        <h2 class="text-xl md:text-3xl font-bold mb-4 md:mb-6">What are you looking for?</h2>
 
         <!-- Main search row -->
-        <div class="flex justify-center gap-3 mb-3">
+        <div class="flex flex-col sm:flex-row justify-center gap-2 md:gap-3 mb-3">
+
+          <!-- Location select -->
           <select
             v-model="selectedLocation"
-            class="px-4 py-3 rounded-lg text-gray-700">
+            class="px-3 py-2.5 md:px-4 md:py-3 rounded-lg text-gray-700 text-sm md:text-base w-full sm:w-auto">
             <option value="">All Kenya</option>
             <option v-for="county in counties" :key="county" :value="county">
               {{ county }}
             </option>
           </select>
 
-          <div class="flex">
+          <!-- Search input + button -->
+          <div class="flex flex-1">
             <input
               v-model="search"
               type="text"
               placeholder="I am looking for..."
-              class="w-96 px-4 py-3 rounded-l-lg text-gray-700 outline-none"
+              class="flex-1 min-w-0 px-3 py-2.5 md:px-4 md:py-3 rounded-l-lg text-gray-700 outline-none text-sm md:text-base"
             />
-            <button class="bg-white text-green-700 px-5 py-3 rounded-r-lg hover:bg-gray-100 transition border-l border-gray-200">
+            <button class="bg-white text-green-700 px-4 py-2.5 md:px-5 md:py-3 rounded-r-lg hover:bg-gray-100 transition border-l border-gray-200">
               🔍
             </button>
           </div>
@@ -132,7 +137,7 @@ const selectCategory = (name) => {
           <!-- Filter toggle button -->
           <button
             @click="showFilters = !showFilters"
-            class="relative flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition"
+            class="relative flex items-center justify-center gap-2 px-4 py-2.5 md:py-3 rounded-lg font-semibold transition text-sm md:text-base w-full sm:w-auto"
             :class="showFilters || activeFilterCount > 0
               ? 'bg-white text-green-700'
               : 'bg-white bg-opacity-20 hover:bg-opacity-30 text-white'">
@@ -146,7 +151,7 @@ const selectCategory = (name) => {
         </div>
 
         <!-- Expanded filter row -->
-        <div v-if="showFilters" class="flex justify-center gap-3 mt-3 flex-wrap">
+        <div v-if="showFilters" class="flex flex-wrap justify-center gap-2 md:gap-3 mt-3">
 
           <!-- Min price -->
           <div class="relative">
@@ -156,7 +161,7 @@ const selectCategory = (name) => {
               type="number"
               min="0"
               placeholder="Min price"
-              class="pl-12 pr-4 py-3 rounded-lg text-gray-700 outline-none w-36"
+              class="pl-12 pr-4 py-2.5 md:py-3 rounded-lg text-gray-700 outline-none w-32 md:w-36 text-sm"
             />
           </div>
 
@@ -168,18 +173,18 @@ const selectCategory = (name) => {
               type="number"
               min="0"
               placeholder="Max price"
-              class="pl-12 pr-4 py-3 rounded-lg text-gray-700 outline-none w-36"
+              class="pl-12 pr-4 py-2.5 md:py-3 rounded-lg text-gray-700 outline-none w-32 md:w-36 text-sm"
             />
           </div>
 
           <!-- Quantity -->
           <div class="relative">
-            <span class="absolute left-3 top-3 text-lg">📦</span>
+            <span class="absolute left-3 top-2.5 md:top-3 text-lg">📦</span>
             <input
               v-model="quantitySearch"
               type="text"
-              placeholder="Quantity e.g. 50kg"
-              class="pl-10 pr-4 py-3 rounded-lg text-gray-700 outline-none w-44"
+              placeholder="Qty e.g. 50kg"
+              class="pl-10 pr-4 py-2.5 md:py-3 rounded-lg text-gray-700 outline-none w-36 md:w-44 text-sm"
             />
           </div>
 
@@ -187,31 +192,31 @@ const selectCategory = (name) => {
           <button
             v-if="activeFilterCount > 0"
             @click="clearFilters"
-            class="px-4 py-3 rounded-lg bg-red-100 text-red-600 font-semibold hover:bg-red-200 transition text-sm">
+            class="px-4 py-2.5 md:py-3 rounded-lg bg-red-100 text-red-600 font-semibold hover:bg-red-200 transition text-sm">
             ✕ Clear filters
           </button>
 
         </div>
 
         <!-- Active filter tags -->
-        <div v-if="activeFilterCount > 0" class="flex justify-center gap-2 mt-3 flex-wrap">
+        <div v-if="activeFilterCount > 0" class="flex justify-center gap-2 mt-3 flex-wrap px-2">
           <span v-if="selectedLocation"
-            class="bg-white bg-opacity-20 text-white text-sm px-3 py-1 rounded-full flex items-center gap-1">
+            class="bg-white bg-opacity-20 text-white text-xs md:text-sm px-2 md:px-3 py-1 rounded-full flex items-center gap-1">
             📍 {{ selectedLocation }}
             <button @click="selectedLocation = ''" class="ml-1 hover:text-red-300">✕</button>
           </span>
           <span v-if="minPrice"
-            class="bg-white bg-opacity-20 text-white text-sm px-3 py-1 rounded-full flex items-center gap-1">
+            class="bg-white bg-opacity-20 text-white text-xs md:text-sm px-2 md:px-3 py-1 rounded-full flex items-center gap-1">
             Min: KSh {{ minPrice }}
             <button @click="minPrice = ''" class="ml-1 hover:text-red-300">✕</button>
           </span>
           <span v-if="maxPrice"
-            class="bg-white bg-opacity-20 text-white text-sm px-3 py-1 rounded-full flex items-center gap-1">
+            class="bg-white bg-opacity-20 text-white text-xs md:text-sm px-2 md:px-3 py-1 rounded-full flex items-center gap-1">
             Max: KSh {{ maxPrice }}
             <button @click="maxPrice = ''" class="ml-1 hover:text-red-300">✕</button>
           </span>
           <span v-if="quantitySearch"
-            class="bg-white bg-opacity-20 text-white text-sm px-3 py-1 rounded-full flex items-center gap-1">
+            class="bg-white bg-opacity-20 text-white text-xs md:text-sm px-2 md:px-3 py-1 rounded-full flex items-center gap-1">
             📦 {{ quantitySearch }}
             <button @click="quantitySearch = ''" class="ml-1 hover:text-red-300">✕</button>
           </span>
@@ -221,23 +226,31 @@ const selectCategory = (name) => {
     </section>
 
     <!-- Main -->
-    <div class="max-w-7xl mx-auto px-4 py-8">
-      <div class="flex flex-col md:flex-row gap-6">
+    <div class="max-w-7xl mx-auto px-3 md:px-4 py-4 md:py-8">
+      <div class="flex flex-col md:flex-row gap-4 md:gap-6">
 
         <!-- Categories Sidebar -->
         <div class="w-full md:w-64 shrink-0">
           <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
-            <div class="bg-green-600 text-white px-5 py-4">
-              <h3 class="font-bold text-lg">Categories</h3>
+            <div class="bg-green-600 text-white px-5 py-3 md:py-4 flex items-center justify-between">
+              <h3 class="font-bold text-base md:text-lg">Categories</h3>
+              <!-- Toggle on mobile -->
+              <button
+                class="md:hidden text-white"
+                @click="showCategories = !showCategories">
+                <Icon :icon="showCategories ? 'mdi:chevron-up' : 'mdi:chevron-down'" class="w-5 h-5" />
+              </button>
             </div>
-            <div class="divide-y divide-gray-100">
+
+            <!-- On desktop always show, on mobile toggle -->
+            <div class="divide-y divide-gray-100" :class="{ 'hidden md:block': !showCategories }">
               <button
                 @click="selectCategory('')"
-                class="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition"
+                class="w-full flex items-center justify-between px-5 py-2.5 md:py-3 hover:bg-gray-50 transition"
                 :class="selectedCategory === '' ? 'bg-green-50 text-green-600 font-semibold' : 'text-gray-700'">
                 <div class="flex items-center gap-3">
                   <span>🛒</span>
-                  <span>All Categories</span>
+                  <span class="text-sm md:text-base">All Categories</span>
                 </div>
                 <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
                   {{ products?.length ?? 0 }}
@@ -247,7 +260,7 @@ const selectCategory = (name) => {
                 v-for="cat in categories"
                 :key="cat.name"
                 @click="selectCategory(cat.name)"
-                class="w-full flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition"
+                class="w-full flex items-center justify-between px-5 py-2.5 md:py-3 hover:bg-gray-50 transition"
                 :class="selectedCategory === cat.name ? 'bg-green-50 text-green-600 font-semibold' : 'text-gray-700'">
                 <div class="flex items-center gap-3">
                   <span>{{ cat.icon }}</span>
@@ -263,18 +276,18 @@ const selectCategory = (name) => {
 
         <!-- Listings -->
         <div class="flex-1 min-w-0">
-          <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-bold text-gray-800">
+          <div class="flex justify-between items-center mb-3 md:mb-4">
+            <h2 class="text-base md:text-xl font-bold text-gray-800">
               {{ selectedCategory || 'Latest Listings' }}
             </h2>
-            <span class="text-sm text-gray-400">
+            <span class="text-xs md:text-sm text-gray-400">
               {{ filtered?.length ?? 0 }} listings
             </span>
           </div>
 
-          <div v-if="filtered?.length === 0" class="bg-white rounded-2xl p-20 text-center shadow-sm">
-            <div class="text-5xl mb-4">🌾</div>
-            <p class="text-gray-500">No listings found</p>
+          <div v-if="filtered?.length === 0" class="bg-white rounded-2xl p-10 md:p-20 text-center shadow-sm">
+            <div class="text-4xl md:text-5xl mb-4">🌾</div>
+            <p class="text-gray-500 text-sm md:text-base">No listings found</p>
             <button
               v-if="activeFilterCount > 0 || search || selectedCategory"
               @click="clearFilters(); selectCategory('')"
@@ -283,7 +296,8 @@ const selectCategory = (name) => {
             </button>
           </div>
 
-          <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <!-- Grid — 2 cols on mobile, 3 on lg, 4 on xl -->
+          <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
             <ProductCard
               v-for="product in filtered"
               :key="product.id"

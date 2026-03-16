@@ -1,6 +1,7 @@
 <script setup>
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
+const route = useRoute()
 
 const logout = async () => {
   await supabase.auth.signOut()
@@ -64,28 +65,30 @@ onMounted(async () => {
 
   onUnmounted(() => supabase.removeChannel(channel))
 })
+
+const isActive = (path) => route.path.startsWith(path)
 </script>
 
 <template>
-  <nav class="bg-green-600 text-white px-6 py-3 shadow-lg relative z-10">
+  <nav class="bg-green-600 text-white px-3 md:px-6 py-2 md:py-3 shadow-lg relative z-10">
     <div class="max-w-7xl mx-auto flex justify-between items-center">
 
       <!-- Logo -->
-      <NuxtLink to="/" class="text-2xl font-bold tracking-wide">
+      <NuxtLink to="/" class="text-lg md:text-2xl font-bold tracking-wide shrink-0">
         MkulimaMarket
       </NuxtLink>
 
       <!-- Right Side -->
-      <div class="flex items-center gap-1.5">
+      <div class="flex items-center gap-1 md:gap-3">
 
         <!-- Logged out -->
         <template v-if="!user">
           <NuxtLink to="/auth/login"
-            class="px-4 py-2 hover:bg-green-700 rounded-lg transition text-sm font-medium">
+            class="px-3 py-1.5 md:px-4 md:py-2 hover:bg-green-700 rounded-lg transition text-xs md:text-sm font-medium">
             Sign In
           </NuxtLink>
           <NuxtLink to="/auth/register"
-            class="px-4 py-2 hover:bg-green-700 rounded-lg transition text-sm font-medium">
+            class="px-3 py-1.5 md:px-4 md:py-2 hover:bg-green-700 rounded-lg transition text-xs md:text-sm font-medium">
             Register
           </NuxtLink>
         </template>
@@ -95,107 +98,111 @@ onMounted(async () => {
 
           <!-- Transport -->
           <NuxtLink to="/transport"
-            class="relative w-11 h-11 rounded-full bg-white hover:bg-gray-100 flex items-center justify-center transition text-lg group/tip">
-            🚛
+            class="relative w-8 h-8 md:w-11 md:h-11 rounded-full flex items-center justify-center transition group/tip"
+            :class="isActive('/transport') ? 'bg-white' : 'bg-white hover:bg-gray-100'">
+            <Icon icon="mdi:truck-outline" class="w-4 h-4 md:w-7 md:h-7 transition"
+              :class="isActive('/transport') ? 'text-green-600' : 'text-gray-600'" />
             <span v-if="unreadTransport > 0"
-              class="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold leading-none">
+              class="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs w-4 h-4 md:w-5 md:h-5 rounded-full flex items-center justify-center font-bold leading-none">
               {{ unreadTransport > 9 ? '9+' : unreadTransport }}
             </span>
-            <span class="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition pointer-events-none z-50">
+            <span class="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition pointer-events-none z-50 hidden md:block">
               Transport
             </span>
           </NuxtLink>
 
           <!-- Saved -->
           <NuxtLink to="/saved"
-            class="relative w-11 h-11 rounded-full bg-white hover:bg-gray-100 flex items-center justify-center transition text-lg group/tip">
-            🔖
-            <span class="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition pointer-events-none z-50">
+            class="relative w-8 h-8 md:w-11 md:h-11 rounded-full flex items-center justify-center transition group/tip"
+            :class="isActive('/saved') ? 'bg-white' : 'bg-white hover:bg-gray-100'">
+            <Icon icon="ic:outline-bookmark" class="w-4 h-4 md:w-7 md:h-7 transition"
+              :class="isActive('/saved') ? 'text-green-600' : 'text-gray-600'" />
+            <span class="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition pointer-events-none z-50 hidden md:block">
               Saved
             </span>
           </NuxtLink>
 
           <!-- Messages -->
           <NuxtLink to="/messages"
-            class="relative w-11 h-11 rounded-full bg-white hover:bg-gray-100 flex items-center justify-center transition text-lg group/tip">
-            💬
+            class="relative w-8 h-8 md:w-11 md:h-11 rounded-full flex items-center justify-center transition group/tip"
+            :class="isActive('/messages') ? 'bg-white' : 'bg-white hover:bg-gray-100'">
+            <Icon icon="ic:baseline-chat" class="w-4 h-4 md:w-7 md:h-7 transition"
+              :class="isActive('/messages') ? 'text-green-600' : 'text-gray-600'" />
             <span v-if="unreadCount > 0"
-              class="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold leading-none">
+              class="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs w-4 h-4 md:w-5 md:h-5 rounded-full flex items-center justify-center font-bold leading-none">
               {{ unreadCount > 9 ? '9+' : unreadCount }}
             </span>
-            <span class="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition pointer-events-none z-50">
+            <span class="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition pointer-events-none z-50 hidden md:block">
               My messages
             </span>
           </NuxtLink>
 
           <!-- Notifications -->
           <NuxtLink to="/notifications"
-            class="relative w-11 h-11 rounded-full bg-white hover:bg-gray-100 flex items-center justify-center transition text-lg group/tip">
-            🔔
+            class="relative w-8 h-8 md:w-11 md:h-11 rounded-full flex items-center justify-center transition group/tip"
+            :class="isActive('/notifications') ? 'bg-white' : 'bg-white hover:bg-gray-100'">
+            <Icon icon="ic:round-notifications-active" class="w-4 h-4 md:w-7 md:h-7 transition"
+              :class="isActive('/notifications') ? 'text-green-600' : 'text-gray-600'" />
             <span v-if="unreadNotifications > 0"
-              class="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold leading-none">
+              class="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs w-4 h-4 md:w-5 md:h-5 rounded-full flex items-center justify-center font-bold leading-none">
               {{ unreadNotifications > 9 ? '9+' : unreadNotifications }}
             </span>
-            <span class="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition pointer-events-none z-50">
+            <span class="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition pointer-events-none z-50 hidden md:block">
               Notifications
             </span>
           </NuxtLink>
 
-          <!-- My Listings -->
+          <!-- My Listings — hidden on smallest screens to save space -->
           <NuxtLink to="/dashboard"
-            class="relative w-11 h-11 rounded-full bg-white hover:bg-gray-100 flex items-center justify-center transition text-lg group/tip">
-            📋
-            <span class="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition pointer-events-none z-50">
+            class="relative w-8 h-8 md:w-11 md:h-11 rounded-full flex items-center justify-center transition group/tip hidden sm:flex"
+            :class="isActive('/dashboard') ? 'bg-white' : 'bg-white hover:bg-gray-100'">
+            <Icon icon="ic:baseline-article" class="w-4 h-4 md:w-7 md:h-7 transition"
+              :class="isActive('/dashboard') ? 'text-green-600' : 'text-gray-600'" />
+            <span class="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition pointer-events-none z-50 hidden md:block">
               My listings
             </span>
           </NuxtLink>
 
-        <!-- Profile dropdown -->
-<div class="relative group ml-1">
-  <button
-    class="relative w-11 h-11 rounded-full bg-white hover:bg-gray-100 flex items-center justify-center transition text-lg">
-    👤
-    <span class="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition pointer-events-none z-50">
-      Profile
-    </span>
-  </button>
+          <!-- Profile dropdown -->
+          <div class="relative group">
+            <button
+              class="relative w-8 h-8 md:w-11 md:h-11 rounded-full flex items-center justify-center transition group/tip"
+              :class="isActive('/profile') ? 'bg-white' : 'bg-white hover:bg-gray-100'">
+              <Icon icon="line-md:account" class="w-4 h-4 md:w-7 md:h-7 transition"
+                :class="isActive('/profile') ? 'text-green-600' : 'text-gray-600'" />
+              <span class="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition pointer-events-none z-50 hidden md:block">
+                Profile
+              </span>
+            </button>
 
-  <!-- Invisible bridge to prevent gap -->
-  <div class="absolute top-10 -right-14 w-48 h-4 hidden group-hover:block"></div>
+            <!-- Invisible bridge -->
+            <div class="absolute top-8 md:top-10 -right-14 w-48 h-4 hidden group-hover:block"></div>
 
-  <div
-    class="absolute -right-30 top-12 bg-white text-gray-700 shadow-lg overflow-hidden hidden group-hover:block z-50 border border-gray-100"
-    style="min-width: max-content;">
+            <div
+              class="absolute -right-14 top-10 md:top-12 bg-white text-gray-700 shadow-lg overflow-hidden hidden group-hover:block z-50 border border-gray-100"
+              style="min-width: max-content;">
 
               <NuxtLink to="/dashboard"
                 class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 text-sm text-gray-700 transition border-b border-gray-100">
-                <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-                </svg>
+                <Icon icon="ic:baseline-article" class="w-4 h-4 text-gray-400 shrink-0" />
                 My Listings
               </NuxtLink>
 
               <NuxtLink to="/saved"
                 class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 text-sm text-gray-700 transition border-b border-gray-100">
-                <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/>
-                </svg>
+                <Icon icon="ic:outline-bookmark" class="w-4 h-4 text-gray-400 shrink-0" />
                 Saved Listings
               </NuxtLink>
 
               <NuxtLink to="/profile/edit"
                 class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 text-sm text-gray-700 transition border-b border-gray-100">
-                <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/>
-                </svg>
+                <Icon icon="mdi:cog-outline" class="w-4 h-4 text-gray-400 shrink-0" />
                 Settings
               </NuxtLink>
 
               <button @click="logout"
                 class="w-full flex items-center gap-3 px-5 py-3 hover:bg-red-50 text-sm text-red-500 transition">
-                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
-                </svg>
+                <Icon icon="mdi:logout" class="w-4 h-4 shrink-0" />
                 Log out
               </button>
 
@@ -206,7 +213,7 @@ onMounted(async () => {
 
         <!-- Sell Button -->
         <NuxtLink to="/listings/new"
-          class="bg-orange-500 hover:bg-orange-600 px-6 py-2.5 rounded-xl font-bold transition ml-2 text-sm">
+          class="bg-orange-400 hover:bg-orange-600 px-3 md:px-6 py-1.5 md:py-2.5 rounded-xl font-bold transition text-xs md:text-sm ml-1 md:ml-2 shrink-0">
           Sell
         </NuxtLink>
 
