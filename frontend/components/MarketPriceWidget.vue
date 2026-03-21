@@ -2,6 +2,7 @@
 const props = defineProps({
   category: String,
   currentPrice: Number,
+  query: { type: String, default: null },
   mode: {
     type: String,
     default: 'badge' // 'badge', 'suggest', 'sidebar'
@@ -9,23 +10,38 @@ const props = defineProps({
 })
 
 const { data, pending } = await useFetch(`/api/market/prices`, {
-  query: { category: props.category },
-  immediate: !!props.category
+  query: computed(() => ({
+    category: props.category,
+    query: props.query || undefined
+  })),
+  immediate: !!props.category,
+  watch: [() => props.category, () => props.query]
 })
 
 const formatPrice = (p) => p ? `KSh ${Number(p).toLocaleString('en-KE')}` : '—'
 
+// Use live (title-matched) data if available, otherwise fall back to category-wide
+const liveData = computed(() => {
+  if (data.value?.live?.count > 0) return data.value.live
+  if (data.value?.fallback) return data.value.fallback
+  return null
+})
+
+const isFallback = computed(() =>
+  data.value?.live?.count === 0 && !!data.value?.fallback
+)
+
 const pricePosition = computed(() => {
-  if (!data.value?.live || !props.currentPrice) return null
-  const { min, max } = data.value.live
+  if (!liveData.value || !props.currentPrice) return null
+  const { min, max } = liveData.value
   if (!min || !max || min === max) return null
   const pos = ((props.currentPrice - min) / (max - min)) * 100
   return Math.min(100, Math.max(0, pos))
 })
 
 const priceLabel = computed(() => {
-  if (!data.value?.live || !props.currentPrice) return null
-  const { avg } = data.value.live
+  if (!liveData.value || !props.currentPrice) return null
+  const { avg } = liveData.value
   if (!avg) return null
   const diff = ((props.currentPrice - avg) / avg) * 100
   if (diff > 20) return { text: 'Above market', color: 'text-red-500' }
@@ -48,35 +64,37 @@ const chartPath = computed(() => {
   })
   return `M ${points.join(' L ')}`
 })
+
+const categoryLabel = computed(() =>
+  props.category?.replace(/^\p{Emoji}\s*/u, '') ?? ''
+)
 </script>
 
 <template>
   <div v-if="!pending && data">
 
-    <!-- SIDEBAR MODE: compact single line like Jiji -->
+    <!-- SIDEBAR MODE -->
     <template v-if="mode === 'sidebar'">
-      <div v-if="data.live?.min && data.live?.max"
+      <div v-if="liveData?.min && liveData?.max"
         class="text-sm text-gray-600 border border-gray-100 rounded-lg px-3 py-2 bg-gray-50">
         <span class="text-gray-500">Market price: </span>
         <span class="font-semibold text-blue-600">
-          {{ formatPrice(data.live.min) }} ~ {{ formatPrice(data.live.max) }}
+          {{ formatPrice(liveData.min) }} ~ {{ formatPrice(liveData.max) }}
         </span>
-        <span v-if="priceLabel"
-          class="ml-2 text-xs font-medium"
-          :class="priceLabel.color">
+        <span v-if="priceLabel" class="ml-2 text-xs font-medium" :class="priceLabel.color">
           · {{ priceLabel.text }}
         </span>
       </div>
     </template>
 
-    <!-- BADGE MODE: shown on listing page left column -->
+    <!-- BADGE MODE -->
     <template v-else-if="mode === 'badge'">
-      <div v-if="data.live?.min && data.live?.max"
+      <div v-if="liveData?.min && liveData?.max"
         class="inline-flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-1.5 text-sm">
         <span class="text-blue-400">📊</span>
         <span class="text-gray-500">Market price:</span>
         <span class="font-semibold text-blue-600">
-          {{ formatPrice(data.live.min) }} ~ {{ formatPrice(data.live.max) }}
+          {{ formatPrice(liveData.min) }} ~ {{ formatPrice(liveData.max) }}
         </span>
         <span v-if="priceLabel" class="text-xs font-medium px-2 py-0.5 rounded-full bg-white border"
           :class="priceLabel.color">
@@ -84,10 +102,9 @@ const chartPath = computed(() => {
         </span>
       </div>
 
-      <!-- Price trend chart -->
       <div v-if="data.history?.length > 1" class="mt-3 bg-gray-50 rounded-xl p-4">
         <p class="text-xs font-semibold text-gray-500 mb-2">
-          📈 {{ category }} price trend (last {{ data.history.length }} days)
+          📈 {{ categoryLabel }} price trend (last {{ data.history.length }} days)
         </p>
         <svg viewBox="0 0 300 60" class="w-full h-16" preserveAspectRatio="none">
           <line x1="0" y1="30" x2="300" y2="30" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="4"/>
@@ -105,11 +122,21 @@ const chartPath = computed(() => {
       </div>
     </template>
 
-    <!-- SUGGEST MODE: shown on new listing form -->
+    <!-- SUGGEST MODE -->
     <template v-else-if="mode === 'suggest'">
+
+      <!-- Title-matched results -->
       <div v-if="data.live?.count > 0"
         class="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm">
-        <p class="font-semibold text-blue-700 mb-1">💡 Market insight for {{ category }}</p>
+        <p class="font-semibold text-blue-700 mb-1">
+          💡 Market insight
+          <span v-if="data.searchTerm" class="font-normal text-blue-500 text-xs ml-1">
+            for "{{ data.searchTerm }}"
+          </span>
+          <span v-else class="font-normal text-blue-500 text-xs ml-1">
+            for {{ categoryLabel }}
+          </span>
+        </p>
         <p class="text-gray-600">
           Similar listings sell for
           <span class="font-bold text-green-600">
@@ -117,9 +144,37 @@ const chartPath = computed(() => {
           </span>
         </p>
         <p class="text-gray-400 text-xs mt-1">
-          Average: {{ formatPrice(data.live.avg) }} · Based on {{ data.live.count }} active listing{{ data.live.count === 1 ? '' : 's' }}
+          Average: {{ formatPrice(data.live.avg) }} ·
+          Based on {{ data.live.count }} active listing{{ data.live.count === 1 ? '' : 's' }}
         </p>
       </div>
+
+      <!-- Fallback to category-wide when no title match -->
+      <div v-else-if="isFallback"
+        class="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm">
+        <p class="font-semibold text-gray-600 mb-1">
+          💡 Category price range
+          <span class="font-normal text-gray-400 text-xs ml-1">
+            (no exact match for "{{ data.searchTerm }}")
+          </span>
+        </p>
+        <p class="text-gray-600">
+          {{ categoryLabel }} listings sell for
+          <span class="font-bold text-green-600">
+            {{ formatPrice(data.fallback.min) }} – {{ formatPrice(data.fallback.max) }}
+          </span>
+        </p>
+        <p class="text-gray-400 text-xs mt-1">
+          Average: {{ formatPrice(data.fallback.avg) }} ·
+          Based on {{ data.fallback.count }} active listing{{ data.fallback.count === 1 ? '' : 's' }}
+        </p>
+      </div>
+
+      <!-- No data at all -->
+      <div v-else-if="data.searchTerm" class="text-xs text-gray-400 italic">
+        No price data yet for "{{ data.searchTerm }}" in {{ categoryLabel }}
+      </div>
+
     </template>
 
   </div>

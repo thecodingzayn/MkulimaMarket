@@ -17,16 +17,55 @@ const showPriceHistory = ref(false)
 const showUnavailableModal = ref(false)
 const reportingUnavailable = ref(false)
 const boostModal = ref(false)
+const copied = ref(false)
 
-const { data: product } = await useAsyncData('product', async () => {
+// Loading states
+const loading = ref(true)
+const product = ref(null)
+const marketData = ref(null)
+const stats = ref({ views: 0, contacts: 0 })
+const ratings = ref([])
+const similarListings = ref([])
+const saved = ref(false)
+const hasRated = ref(false)
+
+const refreshStats = async () => {
+  if (!product.value) return
+  const [{ count: views }, { count: contacts }] = await Promise.all([
+    supabase.from('listing_views').select('*', { count: 'exact', head: true }).eq('product_id', product.value.id),
+    supabase.from('listing_contacts').select('*', { count: 'exact', head: true }).eq('product_id', product.value.id),
+  ])
+  stats.value = { views: views ?? 0, contacts: contacts ?? 0 }
+}
+
+const refreshRatings = async () => {
+  const { data } = await supabase
+    .from('ratings')
+    .select('id, listing_id, reviewer_id, seller_id, score, comment, created_at')
+    .eq('listing_id', route.params.id)
+    .order('created_at', { ascending: false })
+
+  if (!data?.length) { ratings.value = []; return }
+
+  const reviewerIds = [...new Set(data.map(r => r.reviewer_id).filter(Boolean))]
+  const { data: profilesData } = await supabase.from('profiles').select('id, name').in('id', reviewerIds)
+  const profileMap = Object.fromEntries(profilesData?.map(p => [p.id, p]) ?? [])
+  ratings.value = data.map(r => ({ ...r, profiles: profileMap[r.reviewer_id] ?? null }))
+  hasRated.value = ratings.value.some(r => r.reviewer_id === user?.id)
+}
+
+onMounted(async () => {
+  loading.value = true
+
+  // Load product
   const { data: productData, error } = await supabase
     .from('products')
     .select('*, listing_images(id, url, position)')
     .eq('id', route.params.id)
     .single()
 
-  if (error || !productData) return null
-  if (['reviewing', 'rejected'].includes(productData.status) && productData.user_id !== user?.id) return null
+  if (error || !productData) { loading.value = false; return }
+  if (['reviewing', 'rejected'].includes(productData.status) && productData.user_id !== user?.id) { loading.value = false; return }
 
   const { data: profileData } = await supabase
     .from('profiles')
@@ -34,28 +73,39 @@ const { data: product } = await useAsyncData('product', async () => {
     .eq('id', productData.user_id)
     .single()
 
-  return { ...productData, profiles: profileData }
-})
+  product.value = { ...productData, profiles: profileData }
+  loading.value = false
 
-const { data: marketData } = await useAsyncData('market-data', async () => {
-  if (!product.value?.category) return null
-  const { data } = await useFetch(`/api/market/prices`, { query: { category: product.value.category } })
-  return data.value
-})
-
-const { data: stats, refresh: refreshStats } = await useAsyncData('stats', async () => {
-  if (!product.value) return { views: 0, contacts: 0 }
-  const [{ count: views }, { count: contacts }] = await Promise.all([
-    supabase.from('listing_views').select('*', { count: 'exact', head: true }).eq('product_id', product.value.id),
-    supabase.from('listing_contacts').select('*', { count: 'exact', head: true }).eq('product_id', product.value.id),
+  // Load everything else in parallel after product is shown
+  await Promise.all([
+    refreshStats(),
+    refreshRatings(),
+    // Market data
+    useFetch(`/api/market/prices`, { query: { category: product.value.category } })
+      .then(({ data }) => { marketData.value = data.value }),
+    // Similar listings
+    supabase
+      .from('products')
+      .select('*, listing_images(id, url, position)')
+      .eq('category', product.value.category)
+      .eq('location', product.value.location)
+      .eq('status', 'active')
+      .neq('id', route.params.id)
+      .limit(4)
+      .then(({ data }) => { similarListings.value = data ?? [] }),
+    // Saved status
+    user ? supabase.from('saved_listings').select('id')
+      .eq('user_id', user.id)
+      .eq('product_id', route.params.id)
+      .maybeSingle()
+      .then(({ data }) => { saved.value = !!data }) : Promise.resolve(),
+    // Track view
+    (user && user.id !== product.value.user_id)
+      ? supabase.from('listing_views')
+          .insert({ product_id: product.value.id, viewer_id: user.id })
+          .then(() => refreshStats())
+      : Promise.resolve()
   ])
-  return { views: views ?? 0, contacts: contacts ?? 0 }
-})
-
-onMounted(async () => {
-  if (!product.value || !user || user?.id === product.value.user_id) return
-  const { error } = await supabase.from('listing_views').insert({ product_id: product.value.id, viewer_id: user.id })
-  if (!error) await refreshStats()
 })
 
 const revealContact = async () => {
@@ -76,42 +126,18 @@ const confirmUnavailable = async () => {
   } catch (e) { console.error(e) } finally { reportingUnavailable.value = false }
 }
 
-const { data: ratings, refresh: refreshRatings } = await useAsyncData('ratings', async () => {
-  const { data } = await supabase
-    .from('ratings')
-    .select('id, listing_id, reviewer_id, seller_id, score, comment, created_at')
-    .eq('listing_id', route.params.id)
-    .order('created_at', { ascending: false })
+const shareOnWhatsApp = () => {
+  const url = `https://mkulima-market-mocha.vercel.app/listings/${product.value.id}`
+  const text = `Check out this listing on MkulimaMarket: ${product.value.title} - KSh ${Number(product.value.price).toLocaleString('en-KE')}`
+  window.open(`https://wa.me/?text=${encodeURIComponent(text + '\n' + url)}`, '_blank')
+}
 
-  if (!data?.length) return []
-
-  const reviewerIds = [...new Set(data.map(r => r.reviewer_id).filter(Boolean))]
-  const { data: profilesData } = await supabase.from('profiles').select('id, name').in('id', reviewerIds)
-  const profileMap = Object.fromEntries(profilesData?.map(p => [p.id, p]) ?? [])
-  return data.map(r => ({ ...r, profiles: profileMap[r.reviewer_id] ?? null }))
-})
-
-const hasRated = ref(ratings.value?.some(r => r.reviewer_id === user?.id) ?? false)
-
-const { data: similarListings } = await useAsyncData('similar', async () => {
-  if (!product.value) return []
-  const { data } = await supabase
-    .from('products')
-    .select('*, listing_images(id, url, position)')
-    .eq('category', product.value.category)
-    .eq('location', product.value.location)
-    .eq('status', 'active')
-    .neq('id', route.params.id)
-    .limit(4)
-  return data ?? []
-}, { watch: [product] })
-
-const saved = ref(false)
-onMounted(async () => {
-  if (!user) return
-  const { data } = await supabase.from('saved_listings').select('id').eq('user_id', user.id).eq('product_id', route.params.id).maybeSingle()
-  saved.value = !!data
-})
+const copyLink = async () => {
+  const url = `https://mkulima-market-mocha.vercel.app/listings/${product.value.id}`
+  await navigator.clipboard.writeText(url)
+  copied.value = true
+  setTimeout(() => { copied.value = false }, 2000)
+}
 
 const toggleSave = async () => {
   if (!user) return
@@ -203,7 +229,6 @@ const memberSince = (date) => {
   return `${years} year${years === 1 ? '' : 's'} on MkulimaMarket`
 }
 
-// Multi-image gallery
 const activeImage = ref(0)
 const images = computed(() => {
   const imgs = product.value?.listing_images
@@ -240,7 +265,67 @@ const formatPrice = (p) => p ? `KSh ${Number(p).toLocaleString('en-KE')}` : '—
         Back to listings
       </button>
 
-      <div v-if="product" class="flex flex-col md:flex-row gap-6">
+      <!-- SKELETON -->
+      <div v-if="loading" class="flex flex-col md:flex-row gap-6 animate-pulse">
+
+        <!-- Left skeleton -->
+        <div class="flex-1 min-w-0 space-y-4">
+          <!-- Image skeleton -->
+          <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <div class="w-full h-80 bg-gray-200"></div>
+          </div>
+          <!-- Details skeleton -->
+          <div class="bg-white rounded-2xl shadow-sm p-6 space-y-4">
+            <div class="h-7 bg-gray-200 rounded-full w-3/4"></div>
+            <div class="flex gap-3">
+              <div class="h-4 bg-gray-200 rounded-full w-24"></div>
+              <div class="h-4 bg-gray-200 rounded-full w-24"></div>
+              <div class="h-4 bg-gray-200 rounded-full w-24"></div>
+            </div>
+            <div class="h-4 bg-gray-200 rounded-full w-1/3"></div>
+            <div class="border-t pt-4 space-y-2">
+              <div class="h-4 bg-gray-200 rounded-full w-full"></div>
+              <div class="h-4 bg-gray-200 rounded-full w-full"></div>
+              <div class="h-4 bg-gray-200 rounded-full w-2/3"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right sidebar skeleton -->
+        <div class="w-full md:w-80 shrink-0 space-y-4">
+          <!-- Price card skeleton -->
+          <div class="bg-white rounded-2xl shadow-sm p-5 space-y-3">
+            <div class="h-9 bg-gray-200 rounded-full w-1/2"></div>
+            <div class="h-8 bg-gray-200 rounded-lg w-32"></div>
+            <div class="h-10 bg-gray-200 rounded-xl w-full"></div>
+          </div>
+          <!-- Seller card skeleton -->
+          <div class="bg-white rounded-2xl shadow-sm p-5 space-y-3">
+            <div class="flex items-center gap-3">
+              <div class="w-14 h-14 rounded-full bg-gray-200 shrink-0"></div>
+              <div class="space-y-2 flex-1">
+                <div class="h-4 bg-gray-200 rounded-full w-3/4"></div>
+                <div class="h-3 bg-gray-200 rounded-full w-1/2"></div>
+                <div class="h-3 bg-gray-200 rounded-full w-2/3"></div>
+              </div>
+            </div>
+            <div class="h-12 bg-gray-200 rounded-xl w-full"></div>
+            <div class="h-12 bg-gray-200 rounded-xl w-full"></div>
+            <div class="h-12 bg-gray-200 rounded-xl w-full"></div>
+          </div>
+          <!-- Safety tips skeleton -->
+          <div class="bg-white rounded-2xl shadow-sm p-5 space-y-3">
+            <div class="h-4 bg-gray-200 rounded-full w-1/3"></div>
+            <div class="h-3 bg-gray-200 rounded-full w-full"></div>
+            <div class="h-3 bg-gray-200 rounded-full w-full"></div>
+            <div class="h-3 bg-gray-200 rounded-full w-4/5"></div>
+            <div class="h-3 bg-gray-200 rounded-full w-full"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ACTUAL CONTENT -->
+      <div v-else-if="product" class="flex flex-col md:flex-row gap-6">
 
         <!-- LEFT COLUMN -->
         <div class="flex-1 min-w-0 space-y-4">
@@ -291,14 +376,12 @@ const formatPrice = (p) => p ? `KSh ${Number(p).toLocaleString('en-KE')}` : '—
                 <Icon icon="mdi:sprout" class="w-24 h-24 text-gray-300" />
               </div>
 
-              <!-- Image counter -->
               <div v-if="images.length > 0"
                 class="absolute bottom-3 left-3 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
                 <Icon icon="mdi:camera" class="w-3.5 h-3.5" />
                 {{ activeImage + 1 }}/{{ images.length }}
               </div>
 
-              <!-- Nav buttons -->
               <button v-if="images.length > 1" @click="activeImage = Math.max(0, activeImage - 1)"
                 class="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-white bg-opacity-80 hover:bg-opacity-100 rounded-full flex items-center justify-center shadow transition text-gray-700">
                 <Icon icon="mdi:chevron-left" class="w-5 h-5" />
@@ -309,7 +392,6 @@ const formatPrice = (p) => p ? `KSh ${Number(p).toLocaleString('en-KE')}` : '—
               </button>
             </div>
 
-            <!-- Thumbnails -->
             <div v-if="images.length > 1" class="flex gap-2 p-3 overflow-x-auto">
               <button v-for="(img, i) in images" :key="i" @click="activeImage = i"
                 class="w-20 h-16 rounded-lg overflow-hidden shrink-0 border-2 transition"
@@ -322,13 +404,34 @@ const formatPrice = (p) => p ? `KSh ${Number(p).toLocaleString('en-KE')}` : '—
           <!-- Details -->
           <div class="bg-white rounded-2xl shadow-sm p-6">
             <div class="flex justify-between items-start flex-wrap gap-2">
-              <div class="flex items-center gap-2 flex-1">
+              <div class="flex items-center gap-2 flex-1 flex-wrap">
                 <h1 class="text-2xl font-bold text-gray-800">{{ product.title }}</h1>
+
                 <button v-if="user && user.id !== product.user_id" @click="toggleSave"
                   class="w-9 h-9 rounded-full flex items-center justify-center transition border shadow-sm shrink-0"
                   :class="saved ? 'bg-green-500 text-white border-green-500' : 'bg-white text-gray-400 border-gray-200 hover:bg-green-50 hover:text-green-500'">
                   <Icon :icon="saved ? 'mdi:bookmark' : 'mdi:bookmark-outline'" class="w-5 h-5" />
                 </button>
+
+                <div class="relative group/share">
+                  <button class="w-9 h-9 rounded-full flex items-center justify-center transition border shadow-sm shrink-0 bg-white text-gray-400 border-gray-200 hover:bg-blue-50 hover:text-blue-500">
+                    <Icon icon="mdi:share-variant-outline" class="w-5 h-5" />
+                  </button>
+                  <div class="absolute left-0 top-11 bg-white rounded-xl shadow-lg border border-gray-100 w-52 z-50 overflow-hidden opacity-0 group-hover/share:opacity-100 pointer-events-none group-hover/share:pointer-events-auto transition-opacity">
+                    <button @click="shareOnWhatsApp"
+                      class="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition border-b border-gray-100">
+                      <svg class="w-5 h-5 text-green-500 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                      Share on WhatsApp
+                    </button>
+                    <button @click="copyLink"
+                      class="w-full flex items-center gap-3 px-4 py-3 text-sm transition"
+                      :class="copied ? 'text-green-600 bg-green-50' : 'text-gray-700 hover:bg-gray-50'">
+                      <Icon :icon="copied ? 'mdi:check-circle' : 'mdi:link-variant'" class="w-5 h-5 shrink-0"
+                        :class="copied ? 'text-green-500' : 'text-blue-500'" />
+                      {{ copied ? 'Link copied!' : 'Copy link' }}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -594,13 +697,15 @@ const formatPrice = (p) => p ? `KSh ${Number(p).toLocaleString('en-KE')}` : '—
         </div>
       </div>
 
+      <!-- Listing not found -->
       <div v-else class="text-center py-20">
         <Icon icon="mdi:sprout" class="w-24 h-24 text-gray-300 mx-auto mb-4" />
         <p class="text-gray-500 text-lg">Listing not found</p>
         <NuxtLink to="/" class="mt-4 inline-block text-green-600 hover:underline">Back to homepage</NuxtLink>
       </div>
 
-      <div v-if="similarListings?.length > 0" class="mt-8">
+      <!-- Similar listings -->
+      <div v-if="!loading && similarListings?.length > 0" class="mt-8">
         <h2 class="text-xl font-bold text-gray-800 mb-4">
           Similar {{ product?.category?.replace(/^\p{Emoji}\s*/u, '') }} listings in {{ product?.location }}
         </h2>

@@ -19,7 +19,7 @@ const form = ref({
   expiryDays: 30,
 })
 
-const images = ref([]) // Array of { file, preview }
+const images = ref([])
 const loading = ref(false)
 const error = ref('')
 
@@ -36,6 +36,11 @@ const expiryDate = computed(() => {
   d.setDate(d.getDate() + form.value.expiryDays)
   return d.toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' })
 })
+
+// Show market widget when category selected AND title has 3+ chars
+const showMarketWidget = computed(() =>
+  !!form.value.category && form.value.title.trim().length > 2
+)
 
 const categories = [
   '🥬 Vegetables', '🍎 Fruits', '🌽 Grains & Cereals',
@@ -182,10 +187,21 @@ const submitListing = async () => {
         </select>
       </div>
 
-      <!-- Market price suggestion -->
-      <div v-if="form.category">
-        <MarketPriceWidget :category="form.category" mode="suggest" />
+      <!-- Market price widget — reacts to both title and category -->
+      <div v-if="showMarketWidget">
+        <MarketPriceWidget
+          :category="form.category"
+          :query="form.title"
+          mode="suggest"
+        />
       </div>
+
+      <!-- Hint when category selected but title too short -->
+      <p v-else-if="form.category && form.title.trim().length <= 2"
+        class="text-xs text-gray-400 -mt-2 flex items-center gap-1">
+        <Icon icon="mdi:information-outline" class="w-3.5 h-3.5" />
+        Type your product title to see market price insights
+      </p>
 
       <!-- Location -->
       <div>
@@ -217,24 +233,17 @@ const submitListing = async () => {
           <span class="text-gray-400">(up to {{ MAX_IMAGES }}, first is cover)</span>
         </label>
 
-        <!-- Image previews -->
         <div v-if="images.length > 0" class="grid grid-cols-3 gap-2 mb-3">
           <div v-for="(img, i) in images" :key="i" class="relative group">
             <img :src="img.preview" class="w-full h-24 object-cover rounded-lg" />
-
-            <!-- Cover badge -->
             <div v-if="i === 0"
               class="absolute top-1 left-1 bg-green-500 text-white text-xs px-1.5 py-0.5 rounded font-semibold">
               Cover
             </div>
-
-            <!-- Remove button -->
             <button @click="removeImage(i)"
               class="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
               <Icon icon="mdi:close" class="w-3.5 h-3.5" />
             </button>
-
-            <!-- Reorder buttons -->
             <div class="absolute bottom-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 transition">
               <button v-if="i > 0" @click="moveImage(i, i - 1)"
                 class="w-5 h-5 bg-black bg-opacity-60 text-white rounded flex items-center justify-center">
@@ -247,7 +256,6 @@ const submitListing = async () => {
             </div>
           </div>
 
-          <!-- Add more slot -->
           <label v-if="images.length < MAX_IMAGES"
             class="w-full h-24 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-green-400 hover:bg-green-50 transition">
             <Icon icon="mdi:plus" class="w-6 h-6 text-gray-400" />
@@ -256,7 +264,6 @@ const submitListing = async () => {
           </label>
         </div>
 
-        <!-- Initial upload area -->
         <label v-if="images.length === 0"
           class="w-full h-36 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-green-400 hover:bg-green-50 transition">
           <Icon icon="mdi:image-plus" class="w-10 h-10 text-gray-400 mb-2" />

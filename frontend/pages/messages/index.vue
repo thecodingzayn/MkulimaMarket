@@ -8,46 +8,107 @@ const { data: { user } } = await supabase.auth.getUser()
 
 const searchQuery = ref('')
 const activeTab = ref('all')
+const loading = ref(true)
 
-const { data: conversations, refresh } = await useAsyncData('conversations', async () => {
+const conversations = ref([])
+const profiles = ref({})
+const messageMeta = ref({})
+
+const loadAll = async () => {
+  loading.value = true
+
   const { data, error } = await supabase
     .from('conversations')
     .select(`id, created_at, listing_id, initiator_id, recipient_id, is_spam, initiator_spam, recipient_spam, products(id, title, price, user_id, listing_images(id, url, position))`)
     .or(`initiator_id.eq.${user.id},recipient_id.eq.${user.id}`)
     .order('created_at', { ascending: false })
+
   if (error) console.error('conversations error:', error)
-  return data ?? []
-})
+  conversations.value = data ?? []
 
-const { data: profiles } = await useAsyncData('inbox-profiles', async () => {
-  if (!conversations.value?.length) return {}
-  const ids = [...new Set(conversations.value.flatMap(c => [c.initiator_id, c.recipient_id]))]
-  const { data } = await supabase.from('profiles').select('id, name, avatar_url, phone').in('id', ids)
-  const map = {}
-  data?.forEach(p => { map[p.id] = { name: p.name, avatar_url: p.avatar_url, phone: p.phone } })
-  return map
-})
+  if (conversations.value.length) {
+    // Load profiles
+    const ids = [...new Set(conversations.value.flatMap(c => [c.initiator_id, c.recipient_id]))]
+    const { data: profilesData } = await supabase.from('profiles').select('id, name, avatar_url, phone').in('id', ids)
+    const map = {}
+    profilesData?.forEach(p => { map[p.id] = { name: p.name, avatar_url: p.avatar_url, phone: p.phone } })
+    profiles.value = map
 
-const { data: messageMeta, refresh: refreshMeta } = await useAsyncData('message-meta', async () => {
-  if (!conversations.value?.length) return {}
+    // Load message meta
+    const convIds = conversations.value.map(c => c.id)
+    const { data: messages } = await supabase
+      .from('messages')
+      .select('conversation_id, body, created_at, sender_id, read')
+      .in('conversation_id', convIds)
+      .order('created_at', { ascending: false })
+
+    const meta = {}
+    messages?.forEach(msg => {
+      if (!meta[msg.conversation_id]) {
+        meta[msg.conversation_id] = {
+          lastMessage: msg.body,
+          lastAt: msg.created_at,
+          lastSenderId: msg.sender_id,
+          lastRead: msg.read,
+          unread: 0
+        }
+      }
+      if (!msg.read && msg.sender_id !== user.id) {
+        meta[msg.conversation_id].unread++
+      }
+    })
+    messageMeta.value = meta
+  }
+
+  loading.value = false
+}
+
+const refresh = async () => {
+  const { data, error } = await supabase
+    .from('conversations')
+    .select(`id, created_at, listing_id, initiator_id, recipient_id, is_spam, initiator_spam, recipient_spam, products(id, title, price, user_id, listing_images(id, url, position))`)
+    .or(`initiator_id.eq.${user.id},recipient_id.eq.${user.id}`)
+    .order('created_at', { ascending: false })
+  if (!error) conversations.value = data ?? []
+}
+
+const refreshMeta = async () => {
+  if (!conversations.value.length) return
   const convIds = conversations.value.map(c => c.id)
-  const { data } = await supabase
+  const { data: messages } = await supabase
     .from('messages')
     .select('conversation_id, body, created_at, sender_id, read')
     .in('conversation_id', convIds)
     .order('created_at', { ascending: false })
 
   const meta = {}
-  data?.forEach(msg => {
+  messages?.forEach(msg => {
     if (!meta[msg.conversation_id]) {
-      meta[msg.conversation_id] = { lastMessage: msg.body, lastAt: msg.created_at, unread: 0 }
+      meta[msg.conversation_id] = {
+        lastMessage: msg.body,
+        lastAt: msg.created_at,
+        lastSenderId: msg.sender_id,
+        lastRead: msg.read,
+        unread: 0
+      }
     }
     if (!msg.read && msg.sender_id !== user.id) {
       meta[msg.conversation_id].unread++
     }
   })
-  return meta
-}, { default: () => ({}) })
+  messageMeta.value = meta
+}
+
+onMounted(async () => {
+  await loadAll()
+
+  const interval = setInterval(() => { refresh(); refreshMeta() }, 5000)
+  onUnmounted(() => clearInterval(interval))
+
+  const closeMenu = () => { showMenu.value = false }
+  document.addEventListener('click', closeMenu)
+  onUnmounted(() => document.removeEventListener('click', closeMenu))
+})
 
 const otherPersonId = (conv) =>
   conv.initiator_id === user.id ? conv.recipient_id : conv.initiator_id
@@ -208,23 +269,63 @@ const spamCount = computed(() =>
     isSpamForMe(c) && (messageMeta.value?.[c.id]?.unread ?? 0) > 0
   ).length
 )
-
-onMounted(() => {
-  const interval = setInterval(() => { refresh(); refreshMeta() }, 5000)
-  onUnmounted(() => clearInterval(interval))
-
-  const closeMenu = () => { showMenu.value = false }
-  document.addEventListener('click', closeMenu)
-  onUnmounted(() => document.removeEventListener('click', closeMenu))
-})
 </script>
 
 <template>
   <div class="bg-gray-100 min-h-screen">
     <div class="max-w-6xl mx-auto px-0 md:px-4 py-0 md:py-8">
 
+      <!-- Loading skeleton -->
+      <div v-if="loading"
+        class="bg-white md:rounded-2xl shadow-sm overflow-hidden flex h-screen md:h-auto md:min-h-[600px]">
+
+        <!-- Left panel skeleton -->
+        <div class="w-full md:w-80 md:shrink-0 flex flex-col border-r">
+          <!-- Header -->
+          <div class="px-4 md:px-5 py-3 md:py-4 border-b">
+            <div class="h-5 bg-gray-200 rounded-full w-32 animate-pulse"></div>
+          </div>
+          <!-- Search -->
+          <div class="px-3 md:px-4 py-2.5 md:py-3 border-b">
+            <div class="h-9 bg-gray-200 rounded-xl animate-pulse"></div>
+          </div>
+          <!-- Tabs -->
+          <div class="flex border-b">
+            <div v-for="n in 3" :key="n" class="flex-1 py-3 flex justify-center">
+              <div class="h-4 bg-gray-200 rounded-full w-12 animate-pulse"></div>
+            </div>
+          </div>
+          <!-- Conversation skeletons -->
+          <div class="flex-1 overflow-y-auto divide-y">
+            <div v-for="n in 6" :key="n"
+              class="flex gap-3 px-3 md:px-4 py-3 md:py-3.5 animate-pulse">
+              <!-- Image -->
+              <div class="w-12 h-12 md:w-14 md:h-14 rounded-lg bg-gray-200 shrink-0"></div>
+              <!-- Info -->
+              <div class="flex-1 min-w-0 space-y-2 py-1">
+                <div class="flex justify-between">
+                  <div class="h-3.5 bg-gray-200 rounded-full w-28"></div>
+                  <div class="h-3 bg-gray-200 rounded-full w-10"></div>
+                </div>
+                <div class="h-3 bg-gray-200 rounded-full w-36"></div>
+                <div class="h-3 bg-gray-200 rounded-full w-44"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right panel skeleton — desktop only -->
+        <div class="hidden md:flex flex-1 items-center justify-center">
+          <div class="text-center text-gray-300 animate-pulse">
+            <Icon icon="mdi:message-outline" class="w-16 h-16 mx-auto mb-3" />
+            <div class="h-4 bg-gray-200 rounded-full w-40 mx-auto mb-2"></div>
+            <div class="h-3 bg-gray-200 rounded-full w-56 mx-auto"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- Empty state -->
-      <div v-if="!conversations?.length"
+      <div v-else-if="!conversations?.length"
         class="bg-white rounded-2xl p-12 md:p-20 text-center shadow-sm mx-3 my-4 md:mx-0 md:my-0">
         <Icon icon="mdi:message-outline" class="w-14 h-14 md:w-16 md:h-16 text-gray-300 mx-auto mb-4" />
         <p class="text-gray-500 font-semibold text-sm md:text-base">No conversations yet</p>
@@ -233,8 +334,7 @@ onMounted(() => {
 
       <!-- Inbox -->
       <div v-else
-        class="bg-white md:rounded-2xl shadow-sm overflow-hidden flex"
-        style="min-height: 100svh; max-height: 100svh; md:min-height: 600px;">
+        class="bg-white md:rounded-2xl shadow-sm overflow-hidden flex h-screen md:h-auto md:min-h-[600px]">
 
         <!-- LEFT PANEL -->
         <div
@@ -297,10 +397,9 @@ onMounted(() => {
 
               <div class="w-12 h-12 md:w-14 md:h-14 rounded-lg overflow-hidden shrink-0 bg-gray-100">
                 <img v-if="conv.products?.listing_images?.length"
-  :src="[...conv.products.listing_images].sort((a,b) => a.position - b.position)[0]?.url"
-  class="w-full h-full object-cover" />
-                <div v-else
-                  class="w-full h-full flex items-center justify-center bg-green-50">
+                  :src="[...conv.products.listing_images].sort((a,b) => a.position - b.position)[0]?.url"
+                  class="w-full h-full object-cover" />
+                <div v-else class="w-full h-full flex items-center justify-center bg-green-50">
                   <Icon icon="mdi:sprout" class="w-6 h-6 text-green-400" />
                 </div>
               </div>
@@ -317,10 +416,28 @@ onMounted(() => {
                 <p class="text-xs text-green-600 font-medium truncate mt-0.5">
                   {{ conv.products?.title }}
                 </p>
+
                 <div class="flex justify-between items-center mt-0.5">
-                  <p class="text-xs text-gray-400 truncate">
-                    {{ messageMeta?.[conv.id]?.lastMessage ?? 'No messages yet' }}
-                  </p>
+                  <div class="flex items-center gap-1 min-w-0 flex-1">
+                    <span v-if="messageMeta?.[conv.id]?.lastSenderId === user.id" class="shrink-0">
+                      <svg v-if="!messageMeta?.[conv.id]?.lastRead"
+                        class="w-5 h-3.5" viewBox="0 0 22 11" fill="none">
+                        <path d="M1 5.5L5.5 10L15 1" stroke="#9CA3AF" stroke-width="2"
+                          stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M7 5.5L11.5 10L21 1" stroke="#9CA3AF" stroke-width="2"
+                          stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                      <svg v-else class="w-5 h-3.5" viewBox="0 0 22 11" fill="none">
+                        <path d="M1 5.5L5.5 10L15 1" stroke="#22c55e" stroke-width="2"
+                          stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M7 5.5L11.5 10L21 1" stroke="#22c55e" stroke-width="2"
+                          stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </span>
+                    <p class="text-xs text-gray-400 truncate">
+                      {{ messageMeta?.[conv.id]?.lastMessage ?? 'No messages yet' }}
+                    </p>
+                  </div>
                   <span v-if="messageMeta?.[conv.id]?.unread > 0"
                     class="bg-green-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center shrink-0 ml-2 font-bold">
                     {{ messageMeta[conv.id].unread }}
@@ -336,7 +453,6 @@ onMounted(() => {
           class="flex-1 flex flex-col min-w-0"
           :class="showChatOnMobile ? 'flex' : 'hidden md:flex'">
 
-          <!-- No conversation selected -->
           <div v-if="!activeConversation"
             class="flex-1 flex items-center justify-center">
             <div class="text-center text-gray-400">
@@ -346,12 +462,9 @@ onMounted(() => {
             </div>
           </div>
 
-          <!-- Active conversation -->
           <template v-else>
 
-            <!-- Chat header -->
             <div class="flex items-center gap-2 md:gap-3 px-3 md:px-5 py-2.5 md:py-3 border-b bg-white">
-
               <button @click="backToList"
                 class="md:hidden w-8 h-8 flex items-center justify-center text-gray-500 hover:text-green-600 transition shrink-0">
                 <Icon icon="mdi:arrow-left" class="w-5 h-5" />
@@ -370,7 +483,6 @@ onMounted(() => {
                 {{ otherPerson(activeConversation)?.name ?? 'User' }}
               </p>
 
-              <!-- Three dot menu -->
               <div class="relative">
                 <button @click.stop="showMenu = !showMenu"
                   class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition text-gray-500">
@@ -381,8 +493,7 @@ onMounted(() => {
                   <NuxtLink :to="`/listings/${activeConversation.listing_id}`"
                     @click="showMenu = false"
                     class="flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gray-50 transition">
-                    <Icon icon="mdi:open-in-new" class="w-4 h-4" />
-                    View listing
+                    <Icon icon="mdi:open-in-new" class="w-4 h-4" />View listing
                   </NuxtLink>
                   <button @click.stop="toggleSpam(activeConversation); showMenu = false"
                     class="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gray-50 transition">
@@ -391,19 +502,17 @@ onMounted(() => {
                   </button>
                   <button @click.stop="deleteConversation(activeConversation)"
                     class="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition">
-                    <Icon icon="mdi:delete-outline" class="w-4 h-4" />
-                    Delete chat
+                    <Icon icon="mdi:delete-outline" class="w-4 h-4" />Delete chat
                   </button>
                 </div>
               </div>
             </div>
 
-            <!-- Listing banner -->
             <div class="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2.5 md:py-3 bg-gray-50 border-b">
               <div class="w-10 h-9 md:w-12 md:h-10 rounded-lg overflow-hidden shrink-0 bg-gray-200">
                 <img v-if="activeConversation.products?.listing_images?.length"
-  :src="[...activeConversation.products.listing_images].sort((a,b) => a.position - b.position)[0]?.url"
-  class="w-full h-full object-cover" />
+                  :src="[...activeConversation.products.listing_images].sort((a,b) => a.position - b.position)[0]?.url"
+                  class="w-full h-full object-cover" />
                 <div v-else class="w-full h-full flex items-center justify-center">
                   <Icon icon="mdi:sprout" class="w-5 h-5 text-gray-400" />
                 </div>
@@ -416,16 +525,13 @@ onMounted(() => {
                   KSh {{ Number(activeConversation.products?.price).toLocaleString('en-KE') }}
                 </p>
               </div>
-              <!-- Show contact -->
               <div class="shrink-0">
-                <button v-if="!showContact"
-                  @click="revealContact"
+                <button v-if="!showContact" @click="revealContact"
                   class="flex items-center gap-1 md:gap-2 border border-green-500 text-green-600 hover:bg-green-50 text-xs md:text-sm font-semibold px-2.5 md:px-4 py-1.5 md:py-2 rounded-xl transition">
                   <Icon icon="mdi:phone-outline" class="w-4 h-4" />
                   <span class="hidden sm:inline">Show</span> contact
                 </button>
-                <a v-else
-                  :href="`tel:${otherPerson(activeConversation)?.phone}`"
+                <a v-else :href="`tel:${otherPerson(activeConversation)?.phone}`"
                   class="flex items-center gap-1 md:gap-2 bg-green-500 hover:bg-green-600 text-white text-xs md:text-sm font-semibold px-2.5 md:px-4 py-1.5 md:py-2 rounded-xl transition">
                   <Icon icon="mdi:phone" class="w-4 h-4" />
                   <span class="hidden sm:inline">{{ otherPerson(activeConversation)?.phone ?? 'No phone' }}</span>
@@ -434,7 +540,6 @@ onMounted(() => {
               </div>
             </div>
 
-            <!-- Messages -->
             <MessageDrawer
               :conversation="activeConversation"
               :user="user"

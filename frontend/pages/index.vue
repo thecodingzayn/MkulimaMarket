@@ -4,7 +4,11 @@ import { Icon } from '@iconify/vue'
 definePageMeta({ middleware: 'no-admin' })
 const supabase = useSupabaseClient()
 
-const { data: products } = await useAsyncData('products', async () => {
+const loading = ref(true)
+const products = ref([])
+
+onMounted(async () => {
+  loading.value = true
   const { data: { user } } = await supabase.auth.getUser()
 
   const { data: activeListings } = await supabase
@@ -22,10 +26,12 @@ const { data: products } = await useAsyncData('products', async () => {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
-    return [...(myReviewing ?? []), ...(activeListings ?? [])]
+    products.value = [...(myReviewing ?? []), ...(activeListings ?? [])]
+  } else {
+    products.value = activeListings ?? []
   }
 
-  return activeListings ?? []
+  loading.value = false
 })
 
 const search = ref('')
@@ -159,16 +165,14 @@ const selectCategory = (name) => {
           </div>
           <button v-if="activeFilterCount > 0" @click="clearFilters"
             class="flex items-center gap-1 px-4 py-2.5 md:py-3 rounded-lg bg-red-100 text-red-600 font-semibold hover:bg-red-200 transition text-sm">
-            <Icon icon="mdi:close" class="w-4 h-4" />
-            Clear filters
+            <Icon icon="mdi:close" class="w-4 h-4" />Clear filters
           </button>
         </div>
 
         <div v-if="activeFilterCount > 0" class="flex justify-center gap-2 mt-3 flex-wrap px-2">
           <span v-if="selectedLocation"
             class="bg-white bg-opacity-20 text-white text-xs md:text-sm px-2 md:px-3 py-1 rounded-full flex items-center gap-1">
-            <Icon icon="mdi:map-marker" class="w-3.5 h-3.5" />
-            {{ selectedLocation }}
+            <Icon icon="mdi:map-marker" class="w-3.5 h-3.5" />{{ selectedLocation }}
             <button @click="selectedLocation = ''" class="ml-1 hover:text-red-300"><Icon icon="mdi:close" class="w-3 h-3" /></button>
           </span>
           <span v-if="minPrice"
@@ -183,8 +187,7 @@ const selectCategory = (name) => {
           </span>
           <span v-if="quantitySearch"
             class="bg-white bg-opacity-20 text-white text-xs md:text-sm px-2 md:px-3 py-1 rounded-full flex items-center gap-1">
-            <Icon icon="mdi:package-variant" class="w-3.5 h-3.5" />
-            {{ quantitySearch }}
+            <Icon icon="mdi:package-variant" class="w-3.5 h-3.5" />{{ quantitySearch }}
             <button @click="quantitySearch = ''" class="ml-1 hover:text-red-300"><Icon icon="mdi:close" class="w-3 h-3" /></button>
           </span>
         </div>
@@ -205,27 +208,45 @@ const selectCategory = (name) => {
                 <Icon :icon="showCategories ? 'mdi:chevron-up' : 'mdi:chevron-down'" class="w-5 h-5" />
               </button>
             </div>
+
             <div class="divide-y divide-gray-100" :class="{ 'hidden md:block': !showCategories }">
-              <button @click="selectCategory('')"
-                class="w-full flex items-center justify-between px-4 py-2.5 md:py-3 hover:bg-gray-50 transition"
-                :class="selectedCategory === '' ? 'bg-green-50 text-green-600 font-semibold' : 'text-gray-700'">
-                <div class="flex items-center gap-3">
-                  <div class="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
-                    <Icon icon="mdi:shopping" class="w-5 h-5 text-green-600" />
+
+              <!-- Skeleton rows while loading -->
+              <template v-if="loading">
+                <div v-for="n in 6" :key="n"
+                  class="flex items-center justify-between px-4 py-3 animate-pulse">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-gray-200 shrink-0"></div>
+                    <div class="h-3 bg-gray-200 rounded-full w-24"></div>
                   </div>
-                  <span class="text-sm md:text-base">All Categories</span>
+                  <div class="h-5 w-8 bg-gray-200 rounded-full"></div>
                 </div>
-                <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">{{ products?.length ?? 0 }}</span>
-              </button>
-              <button v-for="cat in categories" :key="cat.name" @click="selectCategory(cat.name)"
-                class="w-full flex items-center justify-between px-4 py-2.5 md:py-3 hover:bg-gray-50 transition"
-                :class="selectedCategory === cat.name ? 'bg-green-50 text-green-600 font-semibold' : 'text-gray-700'">
-                <div class="flex items-center gap-3">
-                  <img :src="cat.img" :alt="cat.label" class="w-8 h-8 rounded-lg object-cover shrink-0" />
-                  <span class="text-sm">{{ cat.label }}</span>
-                </div>
-                <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">{{ categoryCount[cat.name] ?? 0 }}</span>
-              </button>
+              </template>
+
+              <!-- Actual categories -->
+              <template v-else>
+                <button @click="selectCategory('')"
+                  class="w-full flex items-center justify-between px-4 py-2.5 md:py-3 hover:bg-gray-50 transition"
+                  :class="selectedCategory === '' ? 'bg-green-50 text-green-600 font-semibold' : 'text-gray-700'">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
+                      <Icon icon="mdi:shopping" class="w-5 h-5 text-green-600" />
+                    </div>
+                    <span class="text-sm md:text-base">All Categories</span>
+                  </div>
+                  <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">{{ products?.length ?? 0 }}</span>
+                </button>
+                <button v-for="cat in categories" :key="cat.name" @click="selectCategory(cat.name)"
+                  class="w-full flex items-center justify-between px-4 py-2.5 md:py-3 hover:bg-gray-50 transition"
+                  :class="selectedCategory === cat.name ? 'bg-green-50 text-green-600 font-semibold' : 'text-gray-700'">
+                  <div class="flex items-center gap-3">
+                    <img :src="cat.img" :alt="cat.label" class="w-8 h-8 rounded-lg object-cover shrink-0" />
+                    <span class="text-sm">{{ cat.label }}</span>
+                  </div>
+                  <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">{{ categoryCount[cat.name] ?? 0 }}</span>
+                </button>
+              </template>
+
             </div>
           </div>
         </div>
@@ -237,7 +258,9 @@ const selectCategory = (name) => {
               {{ selectedCategory ? selectedCategory.replace(/^\p{Emoji}\s*/u, '') : 'Latest Listings' }}
             </h2>
             <div class="flex items-center gap-2 md:gap-3">
-              <span class="text-xs md:text-sm text-gray-400 hidden sm:block">{{ filtered?.length ?? 0 }} listings</span>
+              <span class="text-xs md:text-sm text-gray-400 hidden sm:block">
+                {{ loading ? '...' : `${filtered?.length ?? 0} listings` }}
+              </span>
               <select v-model="sortBy"
                 class="text-xs md:text-sm border border-gray-200 rounded-lg px-2 md:px-3 py-1.5 md:py-2 text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
                 <option value="newest">Newest</option>
@@ -248,18 +271,32 @@ const selectCategory = (name) => {
             </div>
           </div>
 
-          <div v-if="filtered?.length === 0" class="bg-white rounded-2xl p-10 md:p-20 text-center shadow-sm">
-            <Icon icon="mdi:sprout" class="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p class="text-gray-500 text-sm md:text-base">No listings found</p>
-            <button v-if="activeFilterCount > 0 || search || selectedCategory"
-              @click="clearFilters(); selectCategory('')"
-              class="mt-4 text-green-600 hover:underline text-sm">
-              Clear all filters
-            </button>
-          </div>
-
+          <!-- Grid -->
           <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
-            <ProductCard v-for="product in filtered" :key="product.id" :product="product" />
+
+            <!-- Skeletons while loading -->
+            <template v-if="loading">
+              <SkeletonCard v-for="n in 8" :key="n" />
+            </template>
+
+            <!-- No results -->
+            <template v-else-if="filtered?.length === 0">
+              <div class="col-span-full bg-white rounded-2xl p-10 md:p-20 text-center shadow-sm">
+                <Icon icon="mdi:sprout" class="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <p class="text-gray-500 text-sm md:text-base">No listings found</p>
+                <button v-if="activeFilterCount > 0 || search || selectedCategory"
+                  @click="clearFilters(); selectCategory('')"
+                  class="mt-4 text-green-600 hover:underline text-sm">
+                  Clear all filters
+                </button>
+              </div>
+            </template>
+
+            <!-- Actual listings -->
+            <template v-else>
+              <ProductCard v-for="product in filtered" :key="product.id" :product="product" />
+            </template>
+
           </div>
         </div>
       </div>
