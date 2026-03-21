@@ -1,4 +1,6 @@
 <script setup>
+import { Icon } from '@iconify/vue'
+
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 const route = useRoute()
@@ -115,7 +117,7 @@ const isActive = (path) => route.path.startsWith(path)
           <NuxtLink to="/saved"
             class="relative w-8 h-8 md:w-11 md:h-11 rounded-full flex items-center justify-center transition group/tip"
             :class="isActive('/saved') ? 'bg-white' : 'bg-white hover:bg-gray-100'">
-            <Icon icon="ic:outline-bookmark" class="w-4 h-4 md:w-7 md:h-7 transition"
+            <Icon icon="mdi:bookmark-outline" class="w-4 h-4 md:w-7 md:h-7 transition"
               :class="isActive('/saved') ? 'text-green-600' : 'text-gray-600'" />
             <span class="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition pointer-events-none z-50 hidden md:block">
               Saved
@@ -126,7 +128,7 @@ const isActive = (path) => route.path.startsWith(path)
           <NuxtLink to="/messages"
             class="relative w-8 h-8 md:w-11 md:h-11 rounded-full flex items-center justify-center transition group/tip"
             :class="isActive('/messages') ? 'bg-white' : 'bg-white hover:bg-gray-100'">
-            <Icon icon="ic:baseline-chat" class="w-4 h-4 md:w-7 md:h-7 transition"
+            <Icon icon="mdi:message-outline" class="w-4 h-4 md:w-7 md:h-7 transition"
               :class="isActive('/messages') ? 'text-green-600' : 'text-gray-600'" />
             <span v-if="unreadCount > 0"
               class="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs w-4 h-4 md:w-5 md:h-5 rounded-full flex items-center justify-center font-bold leading-none">
@@ -141,7 +143,7 @@ const isActive = (path) => route.path.startsWith(path)
           <NuxtLink to="/notifications"
             class="relative w-8 h-8 md:w-11 md:h-11 rounded-full flex items-center justify-center transition group/tip"
             :class="isActive('/notifications') ? 'bg-white' : 'bg-white hover:bg-gray-100'">
-            <Icon icon="ic:round-notifications-active" class="w-4 h-4 md:w-7 md:h-7 transition"
+            <Icon icon="mdi:bell-outline" class="w-4 h-4 md:w-7 md:h-7 transition"
               :class="isActive('/notifications') ? 'text-green-600' : 'text-gray-600'" />
             <span v-if="unreadNotifications > 0"
               class="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs w-4 h-4 md:w-5 md:h-5 rounded-full flex items-center justify-center font-bold leading-none">
@@ -152,11 +154,11 @@ const isActive = (path) => route.path.startsWith(path)
             </span>
           </NuxtLink>
 
-          <!-- My Listings — hidden on smallest screens to save space -->
+          <!-- My Listings -->
           <NuxtLink to="/dashboard"
             class="relative w-8 h-8 md:w-11 md:h-11 rounded-full flex items-center justify-center transition group/tip hidden sm:flex"
             :class="isActive('/dashboard') ? 'bg-white' : 'bg-white hover:bg-gray-100'">
-            <Icon icon="ic:baseline-article" class="w-4 h-4 md:w-7 md:h-7 transition"
+            <Icon icon="mdi:clipboard-list-outline" class="w-4 h-4 md:w-7 md:h-7 transition"
               :class="isActive('/dashboard') ? 'text-green-600' : 'text-gray-600'" />
             <span class="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition pointer-events-none z-50 hidden md:block">
               My listings
@@ -168,7 +170,7 @@ const isActive = (path) => route.path.startsWith(path)
             <button
               class="relative w-8 h-8 md:w-11 md:h-11 rounded-full flex items-center justify-center transition group/tip"
               :class="isActive('/profile') ? 'bg-white' : 'bg-white hover:bg-gray-100'">
-              <Icon icon="line-md:account" class="w-4 h-4 md:w-7 md:h-7 transition"
+              <Icon icon="mdi:account-outline" class="w-4 h-4 md:w-7 md:h-7 transition"
                 :class="isActive('/profile') ? 'text-green-600' : 'text-gray-600'" />
               <span class="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition pointer-events-none z-50 hidden md:block">
                 Profile
@@ -184,13 +186,13 @@ const isActive = (path) => route.path.startsWith(path)
 
               <NuxtLink to="/dashboard"
                 class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 text-sm text-gray-700 transition border-b border-gray-100">
-                <Icon icon="ic:baseline-article" class="w-4 h-4 text-gray-400 shrink-0" />
+                <Icon icon="mdi:clipboard-list-outline" class="w-4 h-4 text-gray-400 shrink-0" />
                 My Listings
               </NuxtLink>
 
               <NuxtLink to="/saved"
                 class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 text-sm text-gray-700 transition border-b border-gray-100">
-                <Icon icon="ic:outline-bookmark" class="w-4 h-4 text-gray-400 shrink-0" />
+                <Icon icon="mdi:bookmark-outline" class="w-4 h-4 text-gray-400 shrink-0" />
                 Saved Listings
               </NuxtLink>
 

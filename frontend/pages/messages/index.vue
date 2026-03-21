@@ -1,4 +1,6 @@
 <script setup>
+import { Icon } from '@iconify/vue'
+
 definePageMeta({ middleware: ['auth', 'no-admin'] })
 
 const supabase = useSupabaseClient()
@@ -10,7 +12,7 @@ const activeTab = ref('all')
 const { data: conversations, refresh } = await useAsyncData('conversations', async () => {
   const { data, error } = await supabase
     .from('conversations')
-    .select(`id, created_at, listing_id, initiator_id, recipient_id, is_spam, initiator_spam, recipient_spam, products(id, title, image_url, price, user_id)`)
+    .select(`id, created_at, listing_id, initiator_id, recipient_id, is_spam, initiator_spam, recipient_spam, products(id, title, price, user_id, listing_images(id, url, position))`)
     .or(`initiator_id.eq.${user.id},recipient_id.eq.${user.id}`)
     .order('created_at', { ascending: false })
   if (error) console.error('conversations error:', error)
@@ -224,7 +226,7 @@ onMounted(() => {
       <!-- Empty state -->
       <div v-if="!conversations?.length"
         class="bg-white rounded-2xl p-12 md:p-20 text-center shadow-sm mx-3 my-4 md:mx-0 md:my-0">
-        <div class="text-4xl md:text-5xl mb-4">💬</div>
+        <Icon icon="mdi:message-outline" class="w-14 h-14 md:w-16 md:h-16 text-gray-300 mx-auto mb-4" />
         <p class="text-gray-500 font-semibold text-sm md:text-base">No conversations yet</p>
         <p class="text-gray-400 text-xs md:text-sm mt-1">Start a conversation from any listing page</p>
       </div>
@@ -234,9 +236,7 @@ onMounted(() => {
         class="bg-white md:rounded-2xl shadow-sm overflow-hidden flex"
         style="min-height: 100svh; max-height: 100svh; md:min-height: 600px;">
 
-        <!-- LEFT PANEL — conversation list -->
-        <!-- On mobile: show when no chat open -->
-        <!-- On desktop: always show -->
+        <!-- LEFT PANEL -->
         <div
           class="flex flex-col border-r"
           :class="[
@@ -252,7 +252,7 @@ onMounted(() => {
           <!-- Search -->
           <div class="px-3 md:px-4 py-2.5 md:py-3 border-b">
             <div class="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2">
-              <span class="text-gray-400 text-sm">🔍</span>
+              <Icon icon="mdi:magnify" class="w-4 h-4 text-gray-400 shrink-0" />
               <input v-model="searchQuery" type="text" placeholder="Search"
                 class="flex-1 bg-transparent text-sm text-gray-700 outline-none placeholder-gray-400" />
             </div>
@@ -296,12 +296,12 @@ onMounted(() => {
               ]">
 
               <div class="w-12 h-12 md:w-14 md:h-14 rounded-lg overflow-hidden shrink-0 bg-gray-100">
-                <img v-if="conv.products?.image_url"
-                  :src="conv.products.image_url"
-                  class="w-full h-full object-cover" />
+                <img v-if="conv.products?.listing_images?.length"
+  :src="[...conv.products.listing_images].sort((a,b) => a.position - b.position)[0]?.url"
+  class="w-full h-full object-cover" />
                 <div v-else
-                  class="w-full h-full flex items-center justify-center text-xl md:text-2xl bg-green-50">
-                  🌾
+                  class="w-full h-full flex items-center justify-center bg-green-50">
+                  <Icon icon="mdi:sprout" class="w-6 h-6 text-green-400" />
                 </div>
               </div>
 
@@ -331,18 +331,16 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- RIGHT PANEL — chat -->
-        <!-- On mobile: show only when chat is open -->
-        <!-- On desktop: always show -->
+        <!-- RIGHT PANEL -->
         <div
           class="flex-1 flex flex-col min-w-0"
           :class="showChatOnMobile ? 'flex' : 'hidden md:flex'">
 
-          <!-- No conversation selected (desktop only) -->
+          <!-- No conversation selected -->
           <div v-if="!activeConversation"
             class="flex-1 flex items-center justify-center">
             <div class="text-center text-gray-400">
-              <div class="text-4xl md:text-5xl mb-3">💬</div>
+              <Icon icon="mdi:message-outline" class="w-14 h-14 md:w-16 md:h-16 text-gray-300 mx-auto mb-3" />
               <p class="font-medium text-gray-500 text-sm md:text-base">Select a conversation</p>
               <p class="text-xs md:text-sm mt-1">Choose from your messages on the left</p>
             </div>
@@ -354,7 +352,6 @@ onMounted(() => {
             <!-- Chat header -->
             <div class="flex items-center gap-2 md:gap-3 px-3 md:px-5 py-2.5 md:py-3 border-b bg-white">
 
-              <!-- Back button on mobile -->
               <button @click="backToList"
                 class="md:hidden w-8 h-8 flex items-center justify-center text-gray-500 hover:text-green-600 transition shrink-0">
                 <Icon icon="mdi:arrow-left" class="w-5 h-5" />
@@ -376,23 +373,26 @@ onMounted(() => {
               <!-- Three dot menu -->
               <div class="relative">
                 <button @click.stop="showMenu = !showMenu"
-                  class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition text-gray-500 text-xl leading-none">
-                  ⋮
+                  class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center transition text-gray-500">
+                  <Icon icon="mdi:dots-vertical" class="w-5 h-5" />
                 </button>
                 <div v-if="showMenu"
                   class="absolute right-0 top-10 bg-white rounded-xl shadow-lg border border-gray-100 w-48 md:w-52 z-50 overflow-hidden">
                   <NuxtLink :to="`/listings/${activeConversation.listing_id}`"
                     @click="showMenu = false"
                     class="flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gray-50 transition">
-                    🔗 View listing
+                    <Icon icon="mdi:open-in-new" class="w-4 h-4" />
+                    View listing
                   </NuxtLink>
                   <button @click.stop="toggleSpam(activeConversation); showMenu = false"
                     class="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-600 hover:bg-gray-50 transition">
-                    ⚑ {{ isSpamForMe(activeConversation) ? 'Remove from spam' : 'Move to spam' }}
+                    <Icon icon="mdi:alert-circle-outline" class="w-4 h-4" />
+                    {{ isSpamForMe(activeConversation) ? 'Remove from spam' : 'Move to spam' }}
                   </button>
                   <button @click.stop="deleteConversation(activeConversation)"
                     class="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition">
-                    🗑️ Delete chat
+                    <Icon icon="mdi:delete-outline" class="w-4 h-4" />
+                    Delete chat
                   </button>
                 </div>
               </div>
@@ -401,10 +401,12 @@ onMounted(() => {
             <!-- Listing banner -->
             <div class="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2.5 md:py-3 bg-gray-50 border-b">
               <div class="w-10 h-9 md:w-12 md:h-10 rounded-lg overflow-hidden shrink-0 bg-gray-200">
-                <img v-if="activeConversation.products?.image_url"
-                  :src="activeConversation.products.image_url"
-                  class="w-full h-full object-cover" />
-                <div v-else class="w-full h-full flex items-center justify-center text-lg">🌾</div>
+                <img v-if="activeConversation.products?.listing_images?.length"
+  :src="[...activeConversation.products.listing_images].sort((a,b) => a.position - b.position)[0]?.url"
+  class="w-full h-full object-cover" />
+                <div v-else class="w-full h-full flex items-center justify-center">
+                  <Icon icon="mdi:sprout" class="w-5 h-5 text-gray-400" />
+                </div>
               </div>
               <div class="flex-1 min-w-0">
                 <p class="text-xs md:text-sm font-semibold text-gray-800 truncate">
@@ -419,12 +421,14 @@ onMounted(() => {
                 <button v-if="!showContact"
                   @click="revealContact"
                   class="flex items-center gap-1 md:gap-2 border border-green-500 text-green-600 hover:bg-green-50 text-xs md:text-sm font-semibold px-2.5 md:px-4 py-1.5 md:py-2 rounded-xl transition">
-                  📞 <span class="hidden sm:inline">Show</span> contact
+                  <Icon icon="mdi:phone-outline" class="w-4 h-4" />
+                  <span class="hidden sm:inline">Show</span> contact
                 </button>
                 <a v-else
                   :href="`tel:${otherPerson(activeConversation)?.phone}`"
                   class="flex items-center gap-1 md:gap-2 bg-green-500 hover:bg-green-600 text-white text-xs md:text-sm font-semibold px-2.5 md:px-4 py-1.5 md:py-2 rounded-xl transition">
-                  📞 <span class="hidden sm:inline">{{ otherPerson(activeConversation)?.phone ?? 'No phone' }}</span>
+                  <Icon icon="mdi:phone" class="w-4 h-4" />
+                  <span class="hidden sm:inline">{{ otherPerson(activeConversation)?.phone ?? 'No phone' }}</span>
                   <span class="sm:hidden">Call</span>
                 </a>
               </div>

@@ -13,9 +13,17 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY,
+    vapidPrivateKey: process.env.VAPID_PRIVATE_KEY,
+    vapidEmail: process.env.VAPID_EMAIL,
     public: {
       supabaseUrl: process.env.SUPABASE_URL,
+      vapidPublicKey: process.env.VAPID_PUBLIC_KEY,
     }
   },
-  routeRules: {}
+  routeRules: {},
+  vite: {
+    optimizeDeps: {
+      include: ['@iconify/vue']
+    }
+  }
 })

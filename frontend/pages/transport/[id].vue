@@ -1,4 +1,6 @@
 <script setup>
+import { Icon } from '@iconify/vue'
+
 const supabase = useSupabaseClient()
 const route = useRoute()
 const { data: { user } } = await supabase.auth.getUser()
@@ -59,7 +61,10 @@ const applyNow = async () => {
     price_offer: appForm.value.price_offer ? Number(appForm.value.price_offer) : null
   })
   appLoading.value = false
-  if (error) { appError.value = error.code === '23505' ? 'You already applied.' : error.message; return }
+  if (error) {
+    appError.value = error.code === '23505' ? 'You already applied.' : error.message
+    return
+  }
   appSuccess.value = true
   await refreshApps()
 }
@@ -79,7 +84,6 @@ const formatDate = (d) => new Date(d).toLocaleDateString('en-KE', {
 onMounted(async () => {
   const { data: { user: u } } = await supabase.auth.getUser()
   if (!u?.id) return
-
   await supabase
     .from('notifications')
     .update({ read: true })
@@ -96,51 +100,74 @@ onMounted(async () => {
 
       <button @click="$router.back()"
         class="text-gray-500 hover:text-green-600 mb-4 md:mb-6 flex items-center gap-2 transition text-sm md:text-base">
-        ← Back to requests
+        <Icon icon="mdi:arrow-left" class="w-5 h-5" />
+        Back to requests
       </button>
 
       <div v-if="request" class="space-y-3 md:space-y-4">
 
-        <!-- Request details -->
+        <!-- Request details card -->
         <div class="bg-white rounded-2xl shadow-sm p-4 md:p-6">
           <div class="flex justify-between items-start flex-wrap gap-2 mb-4">
-            <h1 class="text-base md:text-xl font-bold text-gray-800 flex-1 min-w-0 pr-2">
+            <h1 class="text-base md:text-xl font-bold text-gray-800 flex-1 min-w-0 pr-2 flex items-center gap-2">
+              <Icon icon="mdi:map-marker-path" class="w-5 h-5 text-green-500 shrink-0" />
               {{ request.pickup_location }} → {{ request.destination }}
             </h1>
-            <span class="text-xs md:text-sm px-2 md:px-3 py-1 rounded-full font-semibold shrink-0"
+            <span class="text-xs md:text-sm px-2 md:px-3 py-1 rounded-full font-semibold shrink-0 flex items-center gap-1"
               :class="request.status === 'open' ? 'bg-green-100 text-green-700'
                 : request.status === 'assigned' ? 'bg-blue-100 text-blue-700'
                 : 'bg-gray-100 text-gray-500'">
+              <Icon
+                :icon="request.status === 'open' ? 'mdi:check-circle' : request.status === 'assigned' ? 'mdi:truck-check' : 'mdi:clock-outline'"
+                class="w-3.5 h-3.5" />
               {{ request.status }}
             </span>
           </div>
 
-          <!-- Info grid — 2 cols on mobile, 3 on md -->
+          <!-- Info grid -->
           <div class="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 text-sm">
             <div class="bg-gray-50 rounded-xl p-2.5 md:p-3">
-              <p class="text-gray-400 text-xs mb-1">Cargo</p>
+              <p class="text-gray-400 text-xs mb-1 flex items-center gap-1">
+                <Icon icon="mdi:package-variant" class="w-3.5 h-3.5" />
+                Cargo
+              </p>
               <p class="font-semibold text-gray-700 text-xs md:text-sm">{{ request.cargo_type }}</p>
             </div>
             <div class="bg-gray-50 rounded-xl p-2.5 md:p-3">
-              <p class="text-gray-400 text-xs mb-1">Quantity</p>
+              <p class="text-gray-400 text-xs mb-1 flex items-center gap-1">
+                <Icon icon="mdi:weight" class="w-3.5 h-3.5" />
+                Quantity
+              </p>
               <p class="font-semibold text-gray-700 text-xs md:text-sm">{{ request.quantity }}</p>
             </div>
             <div class="bg-gray-50 rounded-xl p-2.5 md:p-3">
-              <p class="text-gray-400 text-xs mb-1">Date</p>
+              <p class="text-gray-400 text-xs mb-1 flex items-center gap-1">
+                <Icon icon="mdi:calendar-outline" class="w-3.5 h-3.5" />
+                Date
+              </p>
               <p class="font-semibold text-gray-700 text-xs md:text-sm">{{ formatDate(request.preferred_date) }}</p>
             </div>
             <div v-if="request.preferred_time" class="bg-gray-50 rounded-xl p-2.5 md:p-3">
-              <p class="text-gray-400 text-xs mb-1">Time</p>
+              <p class="text-gray-400 text-xs mb-1 flex items-center gap-1">
+                <Icon icon="mdi:clock-outline" class="w-3.5 h-3.5" />
+                Time
+              </p>
               <p class="font-semibold text-gray-700 text-xs md:text-sm">{{ request.preferred_time }}</p>
             </div>
             <div v-if="request.budget" class="bg-green-50 rounded-xl p-2.5 md:p-3">
-              <p class="text-gray-400 text-xs mb-1">Budget</p>
+              <p class="text-gray-400 text-xs mb-1 flex items-center gap-1">
+                <Icon icon="mdi:cash" class="w-3.5 h-3.5" />
+                Budget
+              </p>
               <p class="font-semibold text-green-700 text-xs md:text-sm">
                 KSh {{ Number(request.budget).toLocaleString('en-KE') }}
               </p>
             </div>
             <div class="bg-gray-50 rounded-xl p-2.5 md:p-3">
-              <p class="text-gray-400 text-xs mb-1">Contact</p>
+              <p class="text-gray-400 text-xs mb-1 flex items-center gap-1">
+                <Icon icon="mdi:phone-outline" class="w-3.5 h-3.5" />
+                Contact
+              </p>
               <a :href="`tel:${request.contact_phone}`"
                 class="font-semibold text-blue-600 text-xs md:text-sm">
                 {{ request.contact_phone }}
@@ -150,18 +177,33 @@ onMounted(async () => {
 
           <!-- Requester info -->
           <div class="border-t mt-3 md:mt-4 pt-3 md:pt-4 flex items-center gap-3">
-            <div class="w-8 h-8 md:w-9 md:h-9 rounded-full bg-green-100 flex items-center justify-center text-sm">👤</div>
+            <div class="w-8 h-8 md:w-9 md:h-9 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+              <Icon icon="mdi:account" class="w-5 h-5 text-green-600" />
+            </div>
             <div>
               <p class="font-semibold text-gray-700 text-sm">{{ request.profiles?.name }}</p>
-              <p class="text-xs text-gray-400">📍 {{ request.profiles?.location }}</p>
+              <p class="text-xs text-gray-400 flex items-center gap-1">
+                <Icon icon="mdi:map-marker" class="w-3.5 h-3.5" />
+                {{ request.profiles?.location }}
+              </p>
             </div>
           </div>
         </div>
 
+        <!-- Already applied banner -->
+        <div v-if="hasApplied && !appSuccess"
+          class="bg-blue-50 text-blue-700 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2">
+          <Icon icon="mdi:check-circle" class="w-5 h-5 shrink-0" />
+          You have already applied for this request.
+        </div>
+
         <!-- Apply form -->
-        <div v-if="!isOwner && user && !hasApplied && request.status === 'open'"
+        <div v-if="!isOwner && user && !hasApplied && !appSuccess && request.status === 'open'"
           class="bg-white rounded-2xl shadow-sm p-4 md:p-6">
-          <h2 class="font-bold text-gray-800 mb-3 md:mb-4 text-base md:text-lg">Apply for this job</h2>
+          <h2 class="font-bold text-gray-800 mb-3 md:mb-4 text-base md:text-lg flex items-center gap-2">
+            <Icon icon="mdi:truck-outline" class="w-5 h-5 text-green-600" />
+            Apply for this job
+          </h2>
           <div class="space-y-3">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Your price offer (KSh)</label>
@@ -170,7 +212,7 @@ onMounted(async () => {
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">
-                Message <span class="text-gray-400">(optional)</span>
+                Message <span class="text-gray-400 font-normal">(optional)</span>
               </label>
               <textarea v-model="appForm.message" rows="3"
                 placeholder="Describe your vehicle, capacity, experience..."
@@ -178,24 +220,39 @@ onMounted(async () => {
             </div>
             <p v-if="appError" class="text-red-500 text-sm">{{ appError }}</p>
             <button @click="applyNow" :disabled="appLoading"
-              class="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white py-3 rounded-xl font-semibold transition text-sm">
-              {{ appLoading ? 'Submitting...' : '🚛 Submit Application' }}
+              class="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white py-3 rounded-xl font-semibold transition text-sm flex items-center justify-center gap-2">
+              <Icon icon="mdi:truck-outline" class="w-4 h-4" />
+              {{ appLoading ? 'Submitting...' : 'Submit Application' }}
             </button>
           </div>
         </div>
 
+        <!-- Not logged in -->
+        <div v-if="!user && request.status === 'open'"
+          class="bg-white rounded-2xl shadow-sm p-4 md:p-6 text-center">
+          <Icon icon="mdi:truck-outline" class="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p class="text-gray-500 text-sm mb-3">Sign in to apply for this transport request</p>
+          <NuxtLink to="/auth/login"
+            class="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-2.5 rounded-xl font-semibold transition text-sm">
+            <Icon icon="mdi:login" class="w-4 h-4" />
+            Sign In
+          </NuxtLink>
+        </div>
+
         <!-- Success message -->
         <div v-if="appSuccess"
-          class="bg-green-50 text-green-700 px-4 py-3 rounded-xl text-sm font-medium">
-          ✅ Application submitted! {{ request.profiles?.name ?? 'The requester' }} will contact you if selected.
+          class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2">
+          <Icon icon="mdi:check-circle" class="w-5 h-5 shrink-0" />
+          Application submitted! {{ request.profiles?.name ?? 'The requester' }} will contact you if selected.
         </div>
 
         <!-- Applications list (owner only) -->
         <div v-if="isOwner && applications.length > 0"
           class="bg-white rounded-2xl shadow-sm p-4 md:p-6">
-          <h2 class="font-bold text-gray-800 mb-3 md:mb-4 text-base md:text-lg">
+          <h2 class="font-bold text-gray-800 mb-3 md:mb-4 text-base md:text-lg flex items-center gap-2">
+            <Icon icon="mdi:account-group" class="w-5 h-5 text-green-600" />
             Applications
-            <span class="text-sm font-normal text-gray-400 ml-1">({{ applications.length }})</span>
+            <span class="text-sm font-normal text-gray-400">({{ applications.length }})</span>
           </h2>
           <div class="space-y-3">
             <div v-for="app in applications" :key="app.id"
@@ -203,51 +260,73 @@ onMounted(async () => {
 
               <div class="flex justify-between items-start flex-wrap gap-2">
                 <div class="flex items-center gap-2 md:gap-3">
-                  <div class="w-8 h-8 md:w-9 md:h-9 rounded-full bg-blue-100 flex items-center justify-center text-sm">🚛</div>
+                  <div class="w-8 h-8 md:w-9 md:h-9 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                    <Icon icon="mdi:truck-outline" class="w-4 h-4 text-blue-600" />
+                  </div>
                   <div>
                     <p class="font-semibold text-gray-700 text-sm">{{ app.profiles?.name }}</p>
-                    <p class="text-xs text-gray-400">{{ app.profiles?.phone }}</p>
+                    <p class="text-xs text-gray-400 flex items-center gap-1">
+                      <Icon icon="mdi:phone-outline" class="w-3 h-3" />
+                      {{ app.profiles?.phone }}
+                    </p>
                   </div>
                 </div>
                 <div class="text-right">
                   <p v-if="app.price_offer" class="font-bold text-green-600 text-sm md:text-base">
                     KSh {{ Number(app.price_offer).toLocaleString('en-KE') }}
                   </p>
-                  <span class="text-xs px-2 py-0.5 rounded-full"
+                  <span class="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 justify-end"
                     :class="app.status === 'accepted' ? 'bg-green-100 text-green-700'
                       : app.status === 'rejected' ? 'bg-red-100 text-red-600'
                       : 'bg-gray-100 text-gray-500'">
+                    <Icon
+                      :icon="app.status === 'accepted' ? 'mdi:check-circle' : app.status === 'rejected' ? 'mdi:close-circle' : 'mdi:clock-outline'"
+                      class="w-3 h-3" />
                     {{ app.status }}
                   </span>
                 </div>
               </div>
 
-              <p v-if="app.message" class="text-sm text-gray-500 mt-2 ml-10 md:ml-12">
-                {{ app.message }}
+              <p v-if="app.message" class="text-sm text-gray-500 mt-2 ml-10 md:ml-12 italic">
+                "{{ app.message }}"
               </p>
 
               <div v-if="app.status === 'pending' && request.status === 'open'"
                 class="flex gap-2 mt-3 ml-10 md:ml-12">
                 <button @click="updateApplication(app.id, 'accepted')"
-                  class="px-3 md:px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs md:text-sm rounded-lg font-semibold transition">
-                  ✓ Accept
+                  class="flex items-center gap-1 px-3 md:px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs md:text-sm rounded-lg font-semibold transition">
+                  <Icon icon="mdi:check" class="w-4 h-4" />
+                  Accept
                 </button>
                 <button @click="updateApplication(app.id, 'rejected')"
-                  class="px-3 md:px-4 py-1.5 bg-red-50 hover:bg-red-100 text-red-500 text-xs md:text-sm rounded-lg font-semibold transition">
-                  ✕ Reject
+                  class="flex items-center gap-1 px-3 md:px-4 py-1.5 bg-red-50 hover:bg-red-100 text-red-500 text-xs md:text-sm rounded-lg font-semibold transition">
+                  <Icon icon="mdi:close" class="w-4 h-4" />
+                  Reject
                 </button>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- No applications yet -->
+        <!-- No applications yet (owner) -->
         <div v-else-if="isOwner && applications.length === 0"
-          class="bg-white rounded-2xl shadow-sm p-4 md:p-6 text-center text-sm text-gray-400">
-          No applications yet. Share this page to get others to apply!
+          class="bg-white rounded-2xl shadow-sm p-6 text-center">
+          <Icon icon="mdi:account-search" class="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p class="text-gray-400 text-sm">No applications yet.</p>
+          <p class="text-gray-400 text-xs mt-1">Share this page to get transporters to apply!</p>
         </div>
 
       </div>
+
+      <!-- Request not found -->
+      <div v-else class="text-center py-20">
+        <Icon icon="mdi:truck-outline" class="w-16 h-16 text-gray-300 mx-auto mb-4" />
+        <p class="text-gray-500">Transport request not found.</p>
+        <NuxtLink to="/transport" class="mt-4 inline-block text-green-600 hover:underline text-sm">
+          Back to requests →
+        </NuxtLink>
+      </div>
+
     </div>
   </div>
 </template>

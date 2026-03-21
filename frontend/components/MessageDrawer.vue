@@ -1,4 +1,5 @@
 <script setup>
+import { Icon } from '@iconify/vue'
 const props = defineProps({
   conversation: Object,
   listing: Object,
@@ -290,9 +291,12 @@ const groupedMessages = computed(() => {
             <button @click="close"
               class="text-gray-400 hover:text-gray-600 transition text-xl mr-1 shrink-0">✕</button>
             <div class="w-12 h-10 rounded-lg overflow-hidden shrink-0 bg-gray-100">
-              <img v-if="listing?.image_url" :src="listing.image_url"
-                class="w-full h-full object-cover" />
-              <div v-else class="w-full h-full flex items-center justify-center text-xl">🌾</div>
+              <img v-if="listing?.listing_images?.length"
+  :src="[...listing.listing_images].sort((a,b) => a.position - b.position)[0]?.url"
+  class="w-full h-full object-cover" />
+<div v-else class="w-full h-full flex items-center justify-center">
+  <Icon icon="mdi:sprout" class="w-6 h-6 text-gray-400" />
+</div>
             </div>
             <div class="flex-1 min-w-0">
               <p class="font-semibold text-gray-800 text-sm truncate">{{ listing?.title }}</p>

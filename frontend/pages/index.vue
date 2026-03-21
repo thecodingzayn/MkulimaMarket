@@ -1,4 +1,6 @@
 <script setup>
+import { Icon } from '@iconify/vue'
+
 definePageMeta({ middleware: 'no-admin' })
 const supabase = useSupabaseClient()
 
@@ -7,7 +9,7 @@ const { data: products } = await useAsyncData('products', async () => {
 
   const { data: activeListings } = await supabase
     .from('products')
-    .select('*')
+    .select('*, listing_images(id, url, position)')
     .eq('status', 'active')
     .order('is_boosted', { ascending: false })
     .order('created_at', { ascending: false })
@@ -15,7 +17,7 @@ const { data: products } = await useAsyncData('products', async () => {
   if (user) {
     const { data: myReviewing } = await supabase
       .from('products')
-      .select('*')
+      .select('*, listing_images(id, url, position)')
       .eq('status', 'reviewing')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
@@ -34,18 +36,19 @@ const maxPrice = ref('')
 const showFilters = ref(false)
 const showCategories = ref(false)
 const quantitySearch = ref('')
+const sortBy = ref('newest')
 
 const categories = [
-  { name: '🥬 Vegetables', icon: '🥬', label: 'Vegetables' },
-  { name: '🍎 Fruits', icon: '🍎', label: 'Fruits' },
-  { name: '🌽 Grains & Cereals', icon: '🌽', label: 'Grains & Cereals' },
-  { name: '🥛 Dairy Products', icon: '🥛', label: 'Dairy Products' },
-  { name: '🐔 Poultry', icon: '🐔', label: 'Poultry' },
-  { name: '🐄 Livestock', icon: '🐄', label: 'Livestock' },
-  { name: '🌿 Herbs & Spices', icon: '🌿', label: 'Herbs & Spices' },
-  { name: '🍯 Honey & Organic', icon: '🍯', label: 'Honey & Organic' },
-  { name: '🐟 Fish & Seafood', icon: '🐟', label: 'Fish & Seafood' },
-  { name: '🌱 Seedlings & Inputs', icon: '🌱', label: 'Seedlings & Inputs' },
+  { name: '🥬 Vegetables', label: 'Vegetables', img: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=80&h=80&fit=crop&auto=format' },
+  { name: '🍎 Fruits', label: 'Fruits', img: 'https://images.unsplash.com/photo-1619566636858-adf3ef46400b?w=80&h=80&fit=crop&auto=format' },
+  { name: '🌽 Grains & Cereals', label: 'Grains & Cereals', img: 'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?w=80&h=80&fit=crop&auto=format' },
+  { name: '🥛 Dairy Products', label: 'Dairy Products', img: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?w=80&h=80&fit=crop&auto=format' },
+  { name: '🐔 Poultry', label: 'Poultry', img: 'https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?w=80&h=80&fit=crop&auto=format' },
+  { name: '🐄 Livestock', label: 'Livestock', img: 'https://images.unsplash.com/photo-1545468800-85cc9bc6ecf7?w=80&h=80&fit=crop&auto=format' },
+  { name: '🌿 Herbs & Spices', label: 'Herbs & Spices', img: 'https://images.unsplash.com/photo-1509358271058-acd22cc93898?w=80&h=80&fit=crop&auto=format' },
+  { name: '🍯 Honey & Organic', label: 'Honey & Organic', img: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=80&h=80&fit=crop&auto=format' },
+  { name: '🐟 Fish & Seafood', label: 'Fish & Seafood', img: 'https://images.unsplash.com/photo-1534482421-64566f976cfa?w=80&h=80&fit=crop&auto=format' },
+  { name: '🌱 Seedlings & Inputs', label: 'Seedlings & Inputs', img: 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=80&h=80&fit=crop&auto=format' },
 ]
 
 const counties = [
@@ -73,25 +76,28 @@ const clearFilters = () => {
 const categoryCount = computed(() => {
   const counts = {}
   products.value?.forEach(p => {
-    if (p.category) {
-      counts[p.category] = (counts[p.category] || 0) + 1
-    }
+    if (p.category) counts[p.category] = (counts[p.category] || 0) + 1
   })
   return counts
 })
 
 const filtered = computed(() => {
-  return products.value?.filter(p => {
+  let list = products.value?.filter(p => {
     const matchSearch = p.title.toLowerCase().includes(search.value.toLowerCase())
     const matchLocation = selectedLocation.value ? p.location === selectedLocation.value : true
     const matchCategory = selectedCategory.value ? p.category === selectedCategory.value : true
     const matchMinPrice = minPrice.value && parseFloat(minPrice.value) >= 0 ? p.price >= parseFloat(minPrice.value) : true
     const matchMaxPrice = maxPrice.value && parseFloat(maxPrice.value) >= 0 ? p.price <= parseFloat(maxPrice.value) : true
-    const matchQuantity = quantitySearch.value
-      ? p.quantity?.toLowerCase().includes(quantitySearch.value.toLowerCase())
-      : true
+    const matchQuantity = quantitySearch.value ? p.quantity?.toLowerCase().includes(quantitySearch.value.toLowerCase()) : true
     return matchSearch && matchLocation && matchCategory && matchMinPrice && matchMaxPrice && matchQuantity
-  })
+  }) ?? []
+
+  if (sortBy.value === 'price_asc') list = [...list].sort((a, b) => a.price - b.price)
+  else if (sortBy.value === 'price_desc') list = [...list].sort((a, b) => b.price - a.price)
+  else if (sortBy.value === 'most_viewed') list = [...list].sort((a, b) => (b.views_count ?? 0) - (a.views_count ?? 0))
+  else list = [...list].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+
+  return list
 })
 
 const selectCategory = (name) => {
@@ -108,117 +114,78 @@ const selectCategory = (name) => {
       <div class="max-w-5xl mx-auto text-center px-4">
         <h2 class="text-xl md:text-3xl font-bold mb-4 md:mb-6">What are you looking for?</h2>
 
-        <!-- Main search row -->
         <div class="flex flex-col sm:flex-row justify-center gap-2 md:gap-3 mb-3">
-
-          <!-- Location select -->
-          <select
-            v-model="selectedLocation"
+          <select v-model="selectedLocation"
             class="px-3 py-2.5 md:px-4 md:py-3 rounded-lg text-gray-700 text-sm md:text-base w-full sm:w-auto">
             <option value="">All Kenya</option>
-            <option v-for="county in counties" :key="county" :value="county">
-              {{ county }}
-            </option>
+            <option v-for="county in counties" :key="county" :value="county">{{ county }}</option>
           </select>
 
-          <!-- Search input + button -->
           <div class="flex flex-1">
-            <input
-              v-model="search"
-              type="text"
-              placeholder="I am looking for..."
-              class="flex-1 min-w-0 px-3 py-2.5 md:px-4 md:py-3 rounded-l-lg text-gray-700 outline-none text-sm md:text-base"
-            />
+            <input v-model="search" type="text" placeholder="I am looking for..."
+              class="flex-1 min-w-0 px-3 py-2.5 md:px-4 md:py-3 rounded-l-lg text-gray-700 outline-none text-sm md:text-base" />
             <button class="bg-white text-green-700 px-4 py-2.5 md:px-5 md:py-3 rounded-r-lg hover:bg-gray-100 transition border-l border-gray-200">
-              🔍
+              <Icon icon="mdi:magnify" class="w-5 h-5" />
             </button>
           </div>
 
-          <!-- Filter toggle button -->
-          <button
-            @click="showFilters = !showFilters"
+          <button @click="showFilters = !showFilters"
             class="relative flex items-center justify-center gap-2 px-4 py-2.5 md:py-3 rounded-lg font-semibold transition text-sm md:text-base w-full sm:w-auto"
-            :class="showFilters || activeFilterCount > 0
-              ? 'bg-white text-green-700'
-              : 'bg-white bg-opacity-20 hover:bg-opacity-30 text-white'">
-            ⚙️ Filters
-            <span
-              v-if="activeFilterCount > 0"
+            :class="showFilters || activeFilterCount > 0 ? 'bg-white text-green-700' : 'bg-white bg-opacity-20 hover:bg-opacity-30 text-white'">
+            <Icon icon="mdi:tune" class="w-5 h-5" />
+            Filters
+            <span v-if="activeFilterCount > 0"
               class="absolute -top-1 -right-1 bg-orange-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
               {{ activeFilterCount }}
             </span>
           </button>
         </div>
 
-        <!-- Expanded filter row -->
         <div v-if="showFilters" class="flex flex-wrap justify-center gap-2 md:gap-3 mt-3">
-
-          <!-- Min price -->
           <div class="relative">
             <span class="absolute left-3 top-3 text-gray-400 text-sm">KSh</span>
-            <input
-              v-model="minPrice"
-              type="number"
-              min="0"
-              placeholder="Min price"
-              class="pl-12 pr-4 py-2.5 md:py-3 rounded-lg text-gray-700 outline-none w-32 md:w-36 text-sm"
-            />
+            <input v-model="minPrice" type="number" min="0" placeholder="Min price"
+              class="pl-12 pr-4 py-2.5 md:py-3 rounded-lg text-gray-700 outline-none w-32 md:w-36 text-sm" />
           </div>
-
-          <!-- Max price -->
           <div class="relative">
             <span class="absolute left-3 top-3 text-gray-400 text-sm">KSh</span>
-            <input
-              v-model="maxPrice"
-              type="number"
-              min="0"
-              placeholder="Max price"
-              class="pl-12 pr-4 py-2.5 md:py-3 rounded-lg text-gray-700 outline-none w-32 md:w-36 text-sm"
-            />
+            <input v-model="maxPrice" type="number" min="0" placeholder="Max price"
+              class="pl-12 pr-4 py-2.5 md:py-3 rounded-lg text-gray-700 outline-none w-32 md:w-36 text-sm" />
           </div>
-
-          <!-- Quantity -->
           <div class="relative">
-            <span class="absolute left-3 top-2.5 md:top-3 text-lg">📦</span>
-            <input
-              v-model="quantitySearch"
-              type="text"
-              placeholder="Qty e.g. 50kg"
-              class="pl-10 pr-4 py-2.5 md:py-3 rounded-lg text-gray-700 outline-none w-36 md:w-44 text-sm"
-            />
+            <Icon icon="mdi:package-variant" class="absolute left-3 top-2.5 md:top-3 w-5 h-5 text-gray-400" />
+            <input v-model="quantitySearch" type="text" placeholder="Qty e.g. 50kg"
+              class="pl-10 pr-4 py-2.5 md:py-3 rounded-lg text-gray-700 outline-none w-36 md:w-44 text-sm" />
           </div>
-
-          <!-- Clear filters -->
-          <button
-            v-if="activeFilterCount > 0"
-            @click="clearFilters"
-            class="px-4 py-2.5 md:py-3 rounded-lg bg-red-100 text-red-600 font-semibold hover:bg-red-200 transition text-sm">
-            ✕ Clear filters
+          <button v-if="activeFilterCount > 0" @click="clearFilters"
+            class="flex items-center gap-1 px-4 py-2.5 md:py-3 rounded-lg bg-red-100 text-red-600 font-semibold hover:bg-red-200 transition text-sm">
+            <Icon icon="mdi:close" class="w-4 h-4" />
+            Clear filters
           </button>
-
         </div>
 
-        <!-- Active filter tags -->
         <div v-if="activeFilterCount > 0" class="flex justify-center gap-2 mt-3 flex-wrap px-2">
           <span v-if="selectedLocation"
             class="bg-white bg-opacity-20 text-white text-xs md:text-sm px-2 md:px-3 py-1 rounded-full flex items-center gap-1">
-            📍 {{ selectedLocation }}
-            <button @click="selectedLocation = ''" class="ml-1 hover:text-red-300">✕</button>
+            <Icon icon="mdi:map-marker" class="w-3.5 h-3.5" />
+            {{ selectedLocation }}
+            <button @click="selectedLocation = ''" class="ml-1 hover:text-red-300"><Icon icon="mdi:close" class="w-3 h-3" /></button>
           </span>
           <span v-if="minPrice"
             class="bg-white bg-opacity-20 text-white text-xs md:text-sm px-2 md:px-3 py-1 rounded-full flex items-center gap-1">
             Min: KSh {{ minPrice }}
-            <button @click="minPrice = ''" class="ml-1 hover:text-red-300">✕</button>
+            <button @click="minPrice = ''" class="ml-1 hover:text-red-300"><Icon icon="mdi:close" class="w-3 h-3" /></button>
           </span>
           <span v-if="maxPrice"
             class="bg-white bg-opacity-20 text-white text-xs md:text-sm px-2 md:px-3 py-1 rounded-full flex items-center gap-1">
             Max: KSh {{ maxPrice }}
-            <button @click="maxPrice = ''" class="ml-1 hover:text-red-300">✕</button>
+            <button @click="maxPrice = ''" class="ml-1 hover:text-red-300"><Icon icon="mdi:close" class="w-3 h-3" /></button>
           </span>
           <span v-if="quantitySearch"
             class="bg-white bg-opacity-20 text-white text-xs md:text-sm px-2 md:px-3 py-1 rounded-full flex items-center gap-1">
-            📦 {{ quantitySearch }}
-            <button @click="quantitySearch = ''" class="ml-1 hover:text-red-300">✕</button>
+            <Icon icon="mdi:package-variant" class="w-3.5 h-3.5" />
+            {{ quantitySearch }}
+            <button @click="quantitySearch = ''" class="ml-1 hover:text-red-300"><Icon icon="mdi:close" class="w-3 h-3" /></button>
           </span>
         </div>
 
@@ -234,41 +201,30 @@ const selectCategory = (name) => {
           <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
             <div class="bg-green-600 text-white px-5 py-3 md:py-4 flex items-center justify-between">
               <h3 class="font-bold text-base md:text-lg">Categories</h3>
-              <!-- Toggle on mobile -->
-              <button
-                class="md:hidden text-white"
-                @click="showCategories = !showCategories">
+              <button class="md:hidden text-white" @click="showCategories = !showCategories">
                 <Icon :icon="showCategories ? 'mdi:chevron-up' : 'mdi:chevron-down'" class="w-5 h-5" />
               </button>
             </div>
-
-            <!-- On desktop always show, on mobile toggle -->
             <div class="divide-y divide-gray-100" :class="{ 'hidden md:block': !showCategories }">
-              <button
-                @click="selectCategory('')"
-                class="w-full flex items-center justify-between px-5 py-2.5 md:py-3 hover:bg-gray-50 transition"
+              <button @click="selectCategory('')"
+                class="w-full flex items-center justify-between px-4 py-2.5 md:py-3 hover:bg-gray-50 transition"
                 :class="selectedCategory === '' ? 'bg-green-50 text-green-600 font-semibold' : 'text-gray-700'">
                 <div class="flex items-center gap-3">
-                  <span>🛒</span>
+                  <div class="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
+                    <Icon icon="mdi:shopping" class="w-5 h-5 text-green-600" />
+                  </div>
                   <span class="text-sm md:text-base">All Categories</span>
                 </div>
-                <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
-                  {{ products?.length ?? 0 }}
-                </span>
+                <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">{{ products?.length ?? 0 }}</span>
               </button>
-              <button
-                v-for="cat in categories"
-                :key="cat.name"
-                @click="selectCategory(cat.name)"
-                class="w-full flex items-center justify-between px-5 py-2.5 md:py-3 hover:bg-gray-50 transition"
+              <button v-for="cat in categories" :key="cat.name" @click="selectCategory(cat.name)"
+                class="w-full flex items-center justify-between px-4 py-2.5 md:py-3 hover:bg-gray-50 transition"
                 :class="selectedCategory === cat.name ? 'bg-green-50 text-green-600 font-semibold' : 'text-gray-700'">
                 <div class="flex items-center gap-3">
-                  <span>{{ cat.icon }}</span>
+                  <img :src="cat.img" :alt="cat.label" class="w-8 h-8 rounded-lg object-cover shrink-0" />
                   <span class="text-sm">{{ cat.label }}</span>
                 </div>
-                <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
-                  {{ categoryCount[cat.name] ?? 0 }}
-                </span>
+                <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">{{ categoryCount[cat.name] ?? 0 }}</span>
               </button>
             </div>
           </div>
@@ -278,31 +234,32 @@ const selectCategory = (name) => {
         <div class="flex-1 min-w-0">
           <div class="flex justify-between items-center mb-3 md:mb-4">
             <h2 class="text-base md:text-xl font-bold text-gray-800">
-              {{ selectedCategory || 'Latest Listings' }}
+              {{ selectedCategory ? selectedCategory.replace(/^\p{Emoji}\s*/u, '') : 'Latest Listings' }}
             </h2>
-            <span class="text-xs md:text-sm text-gray-400">
-              {{ filtered?.length ?? 0 }} listings
-            </span>
+            <div class="flex items-center gap-2 md:gap-3">
+              <span class="text-xs md:text-sm text-gray-400 hidden sm:block">{{ filtered?.length ?? 0 }} listings</span>
+              <select v-model="sortBy"
+                class="text-xs md:text-sm border border-gray-200 rounded-lg px-2 md:px-3 py-1.5 md:py-2 text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
+                <option value="newest">Newest</option>
+                <option value="price_asc">Price: Low to High</option>
+                <option value="price_desc">Price: High to Low</option>
+                <option value="most_viewed">Most viewed</option>
+              </select>
+            </div>
           </div>
 
           <div v-if="filtered?.length === 0" class="bg-white rounded-2xl p-10 md:p-20 text-center shadow-sm">
-            <div class="text-4xl md:text-5xl mb-4">🌾</div>
+            <Icon icon="mdi:sprout" class="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p class="text-gray-500 text-sm md:text-base">No listings found</p>
-            <button
-              v-if="activeFilterCount > 0 || search || selectedCategory"
+            <button v-if="activeFilterCount > 0 || search || selectedCategory"
               @click="clearFilters(); selectCategory('')"
               class="mt-4 text-green-600 hover:underline text-sm">
               Clear all filters
             </button>
           </div>
 
-          <!-- Grid — 2 cols on mobile, 3 on lg, 4 on xl -->
           <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
-            <ProductCard
-              v-for="product in filtered"
-              :key="product.id"
-              :product="product"
-            />
+            <ProductCard v-for="product in filtered" :key="product.id" :product="product" />
           </div>
         </div>
       </div>

@@ -1,4 +1,6 @@
 <script setup>
+import { Icon } from '@iconify/vue'
+
 definePageMeta({ middleware: ['auth', 'no-admin'] })
 
 const supabase = useSupabaseClient()
@@ -36,10 +38,11 @@ const timeAgo = (date) => {
 }
 
 const iconFor = (type) => {
-  if (type === 'message') return '💬'
-  if (type === 'rating') return '⭐'
-  if (type === 'listing_expiring') return '⏰'
-  return '🔔'
+  if (type === 'message') return 'mdi:message-outline'
+  if (type === 'rating') return 'mdi:star-outline'
+  if (type === 'listing_expiring') return 'mdi:clock-alert-outline'
+  if (type === 'transport_request') return 'mdi:truck-outline'
+  return 'mdi:bell-outline'
 }
 
 onMounted(() => {
@@ -55,25 +58,18 @@ onMounted(() => {
       <!-- Header -->
       <div class="flex items-center justify-between px-4 sm:px-6 py-4 sm:py-5 border-b">
         <h1 class="text-lg sm:text-xl font-bold text-gray-800">Notifications</h1>
-
         <button
           v-if="notifications.some(n => !n.read)"
           @click="markAllRead"
-          class="text-xs sm:text-sm text-green-600 hover:underline font-medium"
-        >
+          class="text-xs sm:text-sm text-green-600 hover:underline font-medium">
           Mark all as read
         </button>
       </div>
 
       <!-- Empty State -->
-      <div
-        v-if="notifications.length === 0"
-        class="py-16 sm:py-24 text-center px-4"
-      >
-        <div class="text-4xl sm:text-5xl mb-4">🔔</div>
-        <p class="text-gray-500 font-semibold text-sm sm:text-base">
-          No notifications yet
-        </p>
+      <div v-if="notifications.length === 0" class="py-16 sm:py-24 text-center px-4">
+        <Icon icon="mdi:bell-outline" class="w-14 h-14 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-4" />
+        <p class="text-gray-500 font-semibold text-sm sm:text-base">No notifications yet</p>
         <p class="text-gray-400 text-xs sm:text-sm mt-1">
           We'll notify you about messages and activity
         </p>
@@ -81,21 +77,21 @@ onMounted(() => {
 
       <!-- Notifications -->
       <div v-else class="divide-y">
-
         <div
           v-for="n in notifications"
           :key="n.id"
           @click="markRead(n)"
           class="flex gap-3 sm:gap-4 px-4 sm:px-6 py-3 sm:py-4 cursor-pointer hover:bg-gray-50 transition"
-          :class="!n.read ? 'bg-green-50' : ''"
-        >
+          :class="!n.read ? 'bg-green-50' : ''">
 
           <!-- Icon -->
           <div
-            class="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-lg sm:text-xl shrink-0"
-            :class="!n.read ? 'bg-green-100' : 'bg-gray-100'"
-          >
-            {{ iconFor(n.type) }}
+            class="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shrink-0"
+            :class="!n.read ? 'bg-green-100' : 'bg-gray-100'">
+            <Icon
+              :icon="iconFor(n.type)"
+              class="w-5 h-5"
+              :class="!n.read ? 'text-green-600' : 'text-gray-500'" />
           </div>
 
           <!-- Content -->
@@ -103,15 +99,11 @@ onMounted(() => {
             <p class="text-sm sm:text-base font-semibold text-gray-800 truncate">
               {{ n.title }}
             </p>
-
-            <p
-              v-if="n.body"
-              class="text-xs sm:text-sm text-gray-500 mt-0.5 line-clamp-2"
-            >
+            <p v-if="n.body" class="text-xs sm:text-sm text-gray-500 mt-0.5 line-clamp-2">
               {{ n.body }}
             </p>
-
-            <p class="text-xs text-gray-400 mt-1">
+            <p class="text-xs text-gray-400 mt-1 flex items-center gap-1">
+              <Icon icon="mdi:clock-outline" class="w-3 h-3" />
               {{ timeAgo(n.created_at) }}
             </p>
           </div>
@@ -119,12 +111,12 @@ onMounted(() => {
           <!-- Unread dot -->
           <div
             v-if="!n.read"
-            class="w-2.5 h-2.5 rounded-full bg-green-500 shrink-0 mt-2"
-          ></div>
+            class="w-2.5 h-2.5 rounded-full bg-green-500 shrink-0 mt-2">
+          </div>
 
         </div>
-
       </div>
+
     </div>
   </ProfileLayout>
 </template>

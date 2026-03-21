@@ -25,5 +25,15 @@ export default defineEventHandler(async (event) => {
     read: false
   })
 
+  await $fetch('/api/send-push', {
+  method: 'POST',
+  body: {
+    userId: ownerId,
+    title: '⚠️ Your listing has been flagged',
+    body: `A user flagged "${title}" as unavailable.`,
+    url: `/listings/${productId}`
+  }
+})
+
   return { success: true }
 })

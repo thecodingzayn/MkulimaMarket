@@ -1,4 +1,6 @@
 <script setup>
+import { Icon } from '@iconify/vue'
+
 definePageMeta({ middleware: ['auth', 'no-admin'] })
 
 const supabase = useSupabaseClient()
@@ -7,7 +9,7 @@ const { data: { user } } = await supabase.auth.getUser()
 const { data: listings, refresh } = await useAsyncData('my-listings', async () => {
   const { data } = await supabase
     .from('products')
-    .select('*')
+    .select('*, listing_images(id, url, position)')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
   return data ?? []
@@ -59,6 +61,12 @@ const overallRating = computed(() => {
   return (all.reduce((sum, r) => sum + r.score, 0) / all.length).toFixed(1)
 })
 
+const coverImage = (listing) => {
+  const imgs = listing.listing_images
+  if (!imgs?.length) return null
+  return [...imgs].sort((a, b) => a.position - b.position)[0]?.url ?? null
+}
+
 const starsDisplay = (score) =>
   Array.from({ length: 5 }, (_, i) => i + 1 <= Math.round(score) ? '★' : '☆').join('')
 
@@ -73,7 +81,7 @@ const timeAgo = (date) => {
   if (diff < 60) return `${diff} sec ago`
   if (diff < 3600) return `${Math.floor(diff / 60)} min ago`
   if (diff < 86400) return `${Math.floor(diff / 3600)} hr ago`
-  if (diff < 172800) return `yesterday`
+  if (diff < 172800) return 'yesterday'
   if (diff < 604800) return `${Math.floor(diff / 86400)} days ago`
   return new Date(date).toLocaleDateString('en-KE')
 }
@@ -83,42 +91,53 @@ const timeAgo = (date) => {
   <ProfileLayout>
     <div class="space-y-4">
 
-      <!-- Stats overview cards -->
+      <!-- Stats overview -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="bg-white rounded-2xl shadow-sm p-4 text-center">
           <p class="text-3xl font-bold text-gray-800">{{ listings?.length ?? 0 }}</p>
-          <p class="text-xs text-gray-400 mt-1">📋 Listings</p>
+          <p class="text-xs text-gray-400 mt-1 flex items-center justify-center gap-1">
+            <Icon icon="mdi:clipboard-list-outline" class="w-3.5 h-3.5" />
+            Listings
+          </p>
         </div>
         <div class="bg-white rounded-2xl shadow-sm p-4 text-center">
           <p class="text-3xl font-bold text-blue-600">{{ totalStats.views }}</p>
-          <p class="text-xs text-gray-400 mt-1">👁️ Total Views</p>
+          <p class="text-xs text-gray-400 mt-1 flex items-center justify-center gap-1">
+            <Icon icon="mdi:eye-outline" class="w-3.5 h-3.5" />
+            Total Views
+          </p>
         </div>
         <div class="bg-white rounded-2xl shadow-sm p-4 text-center">
           <p class="text-3xl font-bold text-green-600">{{ totalStats.contacts }}</p>
-          <p class="text-xs text-gray-400 mt-1">📞 Contacts</p>
+          <p class="text-xs text-gray-400 mt-1 flex items-center justify-center gap-1">
+            <Icon icon="mdi:phone-outline" class="w-3.5 h-3.5" />
+            Contacts
+          </p>
         </div>
         <div class="bg-white rounded-2xl shadow-sm p-4 text-center">
           <p class="text-3xl font-bold text-yellow-500">{{ overallRating ?? '—' }}</p>
-          <p class="text-xs text-gray-400 mt-1">⭐ Avg Rating</p>
+          <p class="text-xs text-gray-400 mt-1 flex items-center justify-center gap-1">
+            <Icon icon="mdi:star-outline" class="w-3.5 h-3.5" />
+            Avg Rating
+          </p>
         </div>
       </div>
 
       <!-- Listings -->
       <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
 
-        <!-- Header -->
         <div class="flex justify-between items-center px-6 py-5 border-b">
           <div>
             <h2 class="text-xl font-bold text-gray-800">My Adverts</h2>
             <p class="text-sm text-gray-400 mt-0.5">{{ listings?.length ?? 0 }} total</p>
           </div>
           <NuxtLink to="/listings/new"
-            class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl font-semibold transition text-sm">
-            + New Listing
+            class="flex items-center gap-1 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl font-semibold transition text-sm">
+            <Icon icon="mdi:plus" class="w-4 h-4" />
+            New Listing
           </NuxtLink>
         </div>
 
-        <!-- Overall rating bar -->
         <div v-if="overallRating" class="px-6 py-3 bg-yellow-50 border-b flex items-center gap-3">
           <span class="text-yellow-400 text-lg">{{ starsDisplay(overallRating) }}</span>
           <span class="font-bold text-gray-700">{{ overallRating }}</span>
@@ -127,18 +146,17 @@ const timeAgo = (date) => {
           </span>
         </div>
 
-        <!-- Empty state -->
         <div v-if="listings?.length === 0" class="text-center py-24">
-          <div class="text-6xl mb-4">🌾</div>
+          <Icon icon="mdi:sprout" class="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <p class="text-gray-500 text-lg font-semibold">No listings yet</p>
           <p class="text-gray-400 text-sm mt-1 mb-6">Start selling your produce today!</p>
           <NuxtLink to="/listings/new"
-            class="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl font-semibold transition">
-            + Post a Listing
+            class="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-xl font-semibold transition">
+            <Icon icon="mdi:plus" class="w-5 h-5" />
+            Post a Listing
           </NuxtLink>
         </div>
 
-        <!-- Listing rows -->
         <div v-else class="divide-y">
           <div v-for="listing in listings" :key="listing.id"
             class="flex gap-4 px-6 py-5 hover:bg-gray-50 transition group">
@@ -146,9 +164,11 @@ const timeAgo = (date) => {
             <!-- Image -->
             <NuxtLink :to="`/listings/${listing.id}`"
               class="w-32 h-24 rounded-xl overflow-hidden shrink-0 bg-gray-100">
-              <img v-if="listing.image_url" :src="listing.image_url"
+              <img v-if="coverImage(listing)" :src="coverImage(listing)"
                 class="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
-              <div v-else class="w-full h-full flex items-center justify-center text-4xl">🌾</div>
+              <div v-else class="w-full h-full flex items-center justify-center">
+                <Icon icon="mdi:sprout" class="w-10 h-10 text-gray-300" />
+              </div>
             </NuxtLink>
 
             <!-- Info -->
@@ -161,45 +181,46 @@ const timeAgo = (date) => {
               <p class="text-green-600 font-bold text-lg mt-0.5">KSh {{ listing.price }}</p>
 
               <div class="flex items-center gap-3 mt-2 flex-wrap">
-                <span class="text-xs px-2 py-1 rounded-full font-semibold"
+                <span class="text-xs px-2 py-1 rounded-full font-semibold flex items-center gap-1"
                   :class="listing.status === 'active' ? 'bg-green-100 text-green-700'
                     : listing.status === 'rejected' ? 'bg-red-100 text-red-600'
                     : 'bg-orange-100 text-orange-600'">
-                  {{ listing.status === 'active' ? '✅ Active'
-                    : listing.status === 'rejected' ? '❌ Rejected'
-                    : '🔄 Reviewing' }}
+                  <Icon :icon="listing.status === 'active' ? 'mdi:check-circle' : listing.status === 'rejected' ? 'mdi:close-circle' : 'mdi:clock-outline'" class="w-3.5 h-3.5" />
+                  {{ listing.status === 'active' ? 'Active' : listing.status === 'rejected' ? 'Rejected' : 'Reviewing' }}
                 </span>
                 <span class="text-xs text-gray-400">{{ timeAgo(listing.created_at) }}</span>
+                <span v-if="listing.listing_images?.length > 1" class="text-xs text-gray-400 flex items-center gap-1">
+                  <Icon icon="mdi:image-multiple" class="w-3.5 h-3.5" />
+                  {{ listing.listing_images.length }} photos
+                </span>
                 <span v-if="ratingsByListing[listing.id]" class="flex items-center gap-1">
-                  <span class="text-yellow-400 text-sm">
-                    {{ starsDisplay(ratingsByListing[listing.id].total / ratingsByListing[listing.id].count) }}
-                  </span>
+                  <span class="text-yellow-400 text-sm">{{ starsDisplay(ratingsByListing[listing.id].total / ratingsByListing[listing.id].count) }}</span>
                   <span class="text-xs text-gray-400">({{ ratingsByListing[listing.id].count }})</span>
                 </span>
               </div>
 
-              <!-- Rejection reason -->
               <div v-if="listing.status === 'rejected' && listing.rejection_reason"
                 class="mt-2 bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-xs text-red-600 flex items-start gap-2">
-                <span>❌</span>
+                <Icon icon="mdi:close-circle" class="w-4 h-4 shrink-0 mt-0.5" />
                 <span><span class="font-semibold">Rejected:</span> {{ listing.rejection_reason }}</span>
               </div>
 
-              <!-- Per-listing stats -->
-              <div class="flex items-center gap-4 mt-2">
+              <div class="flex items-center gap-4 mt-2 flex-wrap">
                 <span class="flex items-center gap-1 text-xs text-gray-400">
-                  <span class="text-blue-400">👁️</span>
+                  <Icon icon="mdi:eye-outline" class="w-3.5 h-3.5 text-blue-400" />
                   {{ allStats?.[listing.id]?.views ?? 0 }} views
                 </span>
                 <span class="flex items-center gap-1 text-xs text-gray-400">
-                  <span class="text-green-400">📞</span>
+                  <Icon icon="mdi:phone-outline" class="w-3.5 h-3.5 text-green-400" />
                   {{ allStats?.[listing.id]?.contacts ?? 0 }} contacts
                 </span>
-                <span class="bg-gray-100 text-gray-500 text-xs px-2 py-1 rounded-full">
-                  📍 {{ listing.location }}
+                <span class="bg-gray-100 text-gray-500 text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                  <Icon icon="mdi:map-marker" class="w-3 h-3" />
+                  {{ listing.location }}
                 </span>
-                <span class="bg-gray-100 text-gray-500 text-xs px-2 py-1 rounded-full">
-                  {{ listing.category }}
+                <span class="bg-gray-100 text-gray-500 text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                  <Icon icon="mdi:tag" class="w-3 h-3" />
+                  {{ listing.category?.replace(/^\p{Emoji}\s*/u, '') }}
                 </span>
               </div>
             </div>
@@ -208,11 +229,13 @@ const timeAgo = (date) => {
             <div class="flex flex-col gap-2 shrink-0 justify-center">
               <NuxtLink :to="`/listings/edit/${listing.id}`"
                 class="flex items-center justify-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-600 text-sm px-4 py-2 rounded-lg transition font-semibold">
-                ✏️ Edit
+                <Icon icon="mdi:pencil" class="w-4 h-4" />
+                Edit
               </NuxtLink>
               <button @click="deleteListing(listing.id)"
                 class="flex items-center justify-center gap-1 bg-red-50 hover:bg-red-100 text-red-500 text-sm px-4 py-2 rounded-lg transition font-semibold">
-                🗑️ Delete
+                <Icon icon="mdi:delete-outline" class="w-4 h-4" />
+                Delete
               </button>
             </div>
 
