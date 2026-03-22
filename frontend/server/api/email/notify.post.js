@@ -43,8 +43,14 @@ export default defineEventHandler(async (event) => {
   // ─── LISTING APPROVED / REJECTED ──────────────────────────────────────────
   if (type === 'listing_status_changed') {
     const { id, title, status, rejection_reason, user_id } = record
-    const email = await getUserEmail(user_id)
-    const profile = await getProfile(user_id)
+
+  console.log('listing_status_changed fired:', { id, title, status, user_id })
+
+  const email = await getUserEmail(user_id)
+  console.log('fetched email:', email)
+
+  const profile = await getProfile(user_id)
+  console.log('fetched profile:', profile)
     const name = profile?.name ?? 'Farmer'
 
     if (status === 'active' && old_record?.status === 'reviewing') {
