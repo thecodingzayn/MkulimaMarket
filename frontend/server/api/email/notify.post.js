@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
   const resend = new Resend(config.resendApiKey)
-  const site = config.siteUrl || 'http://localhost:3000'
+  const site = config.siteUrl || 'https://mkulima-market-mocha.vercel.app/'
 
   const supabase = createClient(
     process.env.SUPABASE_URL,
