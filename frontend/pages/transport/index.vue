@@ -5,21 +5,71 @@ const supabase = useSupabaseClient()
 const { data: { user } } = await supabase.auth.getUser()
 
 const { data: requests } = await useAsyncData('transport-requests', async () => {
-  const { data, error } = await supabase
+  // Always fetch open requests
+  const { data: openRequests, error } = await supabase
     .from('transport_requests')
     .select('*')
+    .eq('status', 'open')
     .order('created_at', { ascending: false })
 
-  if (error || !data?.length) return []
+  if (error) return []
 
-  const userIds = [...new Set(data.map(r => r.user_id))]
+  let assignedRequests = []
+
+  if (user?.id) {
+    // Fetch assigned requests owned by current user
+    const { data: ownedAssigned } = await supabase
+      .from('transport_requests')
+      .select('*')
+      .eq('status', 'assigned')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+
+    // Fetch assigned requests where current user is the accepted transporter
+    const { data: acceptedApps } = await supabase
+      .from('transport_applications')
+      .select('request_id')
+      .eq('user_id', user.id)
+      .eq('status', 'accepted')
+
+    if (acceptedApps?.length) {
+      const requestIds = acceptedApps.map(a => a.request_id)
+      const { data: transporterAssigned } = await supabase
+        .from('transport_requests')
+        .select('*')
+        .eq('status', 'assigned')
+        .in('id', requestIds)
+        .order('created_at', { ascending: false })
+
+      assignedRequests = [
+        ...(ownedAssigned ?? []),
+        ...(transporterAssigned ?? [])
+      ]
+
+      // Deduplicate in case user is both owner and transporter (shouldn't happen but safe)
+      assignedRequests = assignedRequests.filter(
+        (r, i, self) => self.findIndex(x => x.id === r.id) === i
+      )
+    } else {
+      assignedRequests = ownedAssigned ?? []
+    }
+  }
+
+  // Merge open + assigned, deduplicate
+  const all = [...(openRequests ?? []), ...assignedRequests]
+  const unique = all.filter((r, i, self) => self.findIndex(x => x.id === r.id) === i)
+
+  if (!unique.length) return []
+
+  // Fetch profiles for all requests
+  const userIds = [...new Set(unique.map(r => r.user_id))]
   const { data: profiles } = await supabase
     .from('profiles')
     .select('id, name, location')
     .in('id', userIds)
 
   const profileMap = Object.fromEntries(profiles?.map(p => [p.id, p]) ?? [])
-  return data.map(r => ({ ...r, profiles: profileMap[r.user_id] ?? null }))
+  return unique.map(r => ({ ...r, profiles: profileMap[r.user_id] ?? null }))
 })
 
 const formatDate = (d) => new Date(d).toLocaleDateString('en-KE', {
@@ -29,7 +79,6 @@ const formatDate = (d) => new Date(d).toLocaleDateString('en-KE', {
 onMounted(async () => {
   const { data: { user: u } } = await supabase.auth.getUser()
   if (!u?.id) return
-
   await supabase
     .from('notifications')
     .update({ read: true })
@@ -63,11 +112,19 @@ onMounted(async () => {
 
           <div class="flex justify-between items-start flex-wrap gap-2">
             <div class="flex-1 min-w-0">
-              <p class="font-bold text-gray-800 text-base md:text-lg truncate flex items-center gap-2">
-                <Icon icon="mdi:map-marker-path" class="w-5 h-5 text-green-500 shrink-0" />
-                {{ req.pickup_location }} → {{ req.destination }}
-              </p>
-              <p class="text-xs md:text-sm text-gray-500 mt-1 flex items-center gap-2">
+              <div class="flex items-center gap-2 flex-wrap mb-1">
+                <p class="font-bold text-gray-800 text-base md:text-lg truncate flex items-center gap-2">
+                  <Icon icon="mdi:map-marker-path" class="w-5 h-5 text-green-500 shrink-0" />
+                  {{ req.pickup_location }} → {{ req.destination }}
+                </p>
+                <!-- Status badge — only show assigned to relevant users -->
+                <span v-if="req.status === 'assigned'"
+                  class="text-xs px-2 py-0.5 rounded-full font-semibold bg-blue-100 text-blue-700 flex items-center gap-1 shrink-0">
+                  <Icon icon="mdi:truck-check" class="w-3 h-3" />
+                  Assigned
+                </span>
+              </div>
+              <p class="text-xs md:text-sm text-gray-500 flex items-center gap-2">
                 <Icon icon="mdi:package-variant" class="w-4 h-4 shrink-0" />
                 {{ req.cargo_type }} · {{ req.quantity }}
               </p>
@@ -91,8 +148,9 @@ onMounted(async () => {
               {{ req.profiles?.location }}
             </p>
             <NuxtLink :to="`/transport/${req.id}`"
-              class="text-xs md:text-sm font-semibold text-green-600 hover:underline shrink-0 flex items-center gap-1">
-              View & Apply
+              class="text-xs md:text-sm font-semibold shrink-0 flex items-center gap-1 transition"
+              :class="req.status === 'assigned' ? 'text-blue-600 hover:underline' : 'text-green-600 hover:underline'">
+              {{ req.status === 'assigned' ? 'View Details' : 'View & Apply' }}
               <Icon icon="mdi:arrow-right" class="w-4 h-4" />
             </NuxtLink>
           </div>
