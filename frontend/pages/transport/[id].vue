@@ -23,8 +23,11 @@ const { data: request, refresh: refreshRequest } = await useAsyncData('transport
   return { ...data, profiles: profile ?? null }
 })
 
+// Owner-only: all applications for this request
 const { data: applications, refresh: refreshApps } = await useAsyncData('applications', async () => {
   if (!request.value) return []
+  if (!user?.id || request.value.user_id !== user.id) return []
+
   const { data } = await supabase
     .from('transport_applications')
     .select('*')
@@ -43,27 +46,53 @@ const { data: applications, refresh: refreshApps } = await useAsyncData('applica
   return data.map(a => ({ ...a, profiles: profileMap[a.user_id] ?? null }))
 })
 
+// Non-owner: fetch only the current user's own application
+const { data: myApplication, refresh: refreshMyApp } = await useAsyncData('my-application', async () => {
+  if (!user?.id || !request.value) return null
+  if (request.value.user_id === user.id) return null // owner has no application
+
+  const { data } = await supabase
+    .from('transport_applications')
+    .select('*')
+    .eq('request_id', route.params.id)
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  return data ?? null
+})
+
+// For the accepted offer card — fetch accepted application with profile
+// Visible to both owner and accepted transporter
+const { data: acceptedApplication, refresh: refreshAccepted } = await useAsyncData('accepted-application', async () => {
+  if (!request.value) return null
+  if (request.value.status !== 'assigned') return null
+
+  const { data } = await supabase
+    .from('transport_applications')
+    .select('*')
+    .eq('request_id', route.params.id)
+    .eq('status', 'accepted')
+    .maybeSingle()
+
+  if (!data) return null
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id, name, phone')
+    .eq('id', data.user_id)
+    .single()
+
+  return { ...data, profiles: profile ?? null }
+})
+
 const isOwner = computed(() => user?.id === request.value?.user_id)
 const isAssigned = computed(() => request.value?.status === 'assigned')
-
-// The current user's own application
-const myApplication = computed(() =>
-  applications.value?.find(a => a.user_id === user?.id) ?? null
-)
-
-const hasApplied = computed(() => !!myApplication.value)
 const isAcceptedTransporter = computed(() => myApplication.value?.status === 'accepted')
+const hasApplied = computed(() => !!myApplication.value)
 
-// The accepted application
-const acceptedApplication = computed(() =>
-  applications.value?.find(a => a.status === 'accepted') ?? null
-)
-
-// Owner sees all applications when open, only accepted when assigned
-// Non-owners never see the applications list
+// Owner sees all applications when open
 const visibleApplications = computed(() => {
   if (!isOwner.value || !applications.value?.length) return []
-  if (isAssigned.value) return applications.value.filter(a => a.status === 'accepted')
   return applications.value
 })
 
@@ -87,7 +116,7 @@ const applyNow = async () => {
     return
   }
   appSuccess.value = true
-  await refreshApps()
+  await refreshMyApp()
 }
 
 const updateApplication = async (appId, status) => {
@@ -104,6 +133,7 @@ const updateApplication = async (appId, status) => {
   }
   await refreshApps()
   await refreshRequest()
+  await refreshAccepted()
 }
 
 const formatDate = (d) => new Date(d).toLocaleDateString('en-KE', {
@@ -220,9 +250,10 @@ onMounted(async () => {
         </div>
 
         <!-- ─────────────────────────────────────────────────────── -->
-        <!-- ACCEPTED OFFER CARD — visible to owner + accepted transporter only -->
+        <!-- ACCEPTED OFFER CARD                                     -->
+        <!-- Visible ONLY to: owner + accepted transporter           -->
         <!-- ─────────────────────────────────────────────────────── -->
-        <div v-if="isAssigned && (isOwner || isAcceptedTransporter) && acceptedApplication"
+        <div v-if="isAssigned && acceptedApplication && (isOwner || isAcceptedTransporter)"
           class="bg-white rounded-2xl shadow-sm p-4 md:p-6 border border-blue-100">
 
           <h2 class="font-bold text-gray-800 mb-4 text-base md:text-lg flex items-center gap-2">
@@ -230,7 +261,7 @@ onMounted(async () => {
             Accepted Offer
           </h2>
 
-          <!-- Offer details grid -->
+          <!-- Full job details -->
           <div class="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-3 mb-4">
             <div class="bg-gray-50 rounded-xl p-2.5 md:p-3">
               <p class="text-gray-400 text-xs mb-1 flex items-center gap-1">
@@ -280,17 +311,17 @@ onMounted(async () => {
             </div>
           </div>
 
-          <!-- Message from transporter -->
+          <!-- Transporter message -->
           <div v-if="acceptedApplication.message"
-            class="bg-gray-50 rounded-xl px-4 py-3 mb-4 text-sm text-gray-600 italic border-l-4 border-blue-300">
+            class="bg-gray-50 rounded-xl px-4 py-3 mb-4 text-sm text-gray-600 italic border-l-4 border-blue-200">
             "{{ acceptedApplication.message }}"
           </div>
 
-          <!-- Contact row — owner sees transporter, transporter sees owner -->
+          <!-- Contact section -->
           <div class="border-t pt-4 space-y-3">
             <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Contact</p>
 
-            <!-- Owner sees the accepted transporter -->
+            <!-- Owner sees the accepted transporter's contact -->
             <div v-if="isOwner" class="flex items-center gap-3 bg-blue-50 rounded-xl p-3">
               <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
                 <Icon icon="mdi:truck-outline" class="w-5 h-5 text-blue-600" />
@@ -306,7 +337,7 @@ onMounted(async () => {
               </a>
             </div>
 
-            <!-- Accepted transporter sees the owner -->
+            <!-- Accepted transporter sees the owner's contact -->
             <div v-if="isAcceptedTransporter" class="flex items-center gap-3 bg-green-50 rounded-xl p-3">
               <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
                 <Icon icon="mdi:account" class="w-5 h-5 text-green-600" />
@@ -325,10 +356,10 @@ onMounted(async () => {
         </div>
 
         <!-- ─────────────────────────────────────────────────────── -->
-        <!-- OTHER USERS — request assigned but they are not involved -->
+        <!-- OTHER USERS — request assigned, not their business      -->
         <!-- ─────────────────────────────────────────────────────── -->
-        <div v-if="isAssigned && !isOwner && !isAcceptedTransporter && user"
-          class="bg-white rounded-2xl shadow-sm p-4 md:p-6 text-center">
+        <div v-if="isAssigned && user && !isOwner && !isAcceptedTransporter"
+          class="bg-white rounded-2xl shadow-sm p-6 text-center">
           <Icon icon="mdi:truck-check" class="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <p class="font-semibold text-gray-700 text-sm">This request has been assigned</p>
           <p class="text-gray-400 text-xs mt-1 mb-4">A transporter has already been selected for this job.</p>
@@ -340,7 +371,7 @@ onMounted(async () => {
         </div>
 
         <!-- ─────────────────────────────────────────────────────── -->
-        <!-- APPLY SECTION — only shown when request is open -->
+        <!-- APPLY SECTION — non-owner, request still open          -->
         <!-- ─────────────────────────────────────────────────────── -->
         <template v-if="!isOwner && user && !isAssigned">
 
@@ -403,10 +434,9 @@ onMounted(async () => {
         </div>
 
         <!-- ─────────────────────────────────────────────────────── -->
-        <!-- OWNER — applications list (only shown when request is open) -->
+        <!-- OWNER — applications list (only when request is open)   -->
         <!-- ─────────────────────────────────────────────────────── -->
         <template v-if="isOwner && !isAssigned">
-
           <div v-if="visibleApplications.length > 0"
             class="bg-white rounded-2xl shadow-sm p-4 md:p-6">
             <h2 class="font-bold text-gray-800 mb-3 md:mb-4 text-base md:text-lg flex items-center gap-2">
@@ -474,7 +504,6 @@ onMounted(async () => {
             <p class="text-gray-400 text-sm">No applications yet.</p>
             <p class="text-gray-400 text-xs mt-1">Share this page to get transporters to apply.</p>
           </div>
-
         </template>
 
       </div>
