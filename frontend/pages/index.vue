@@ -99,8 +99,6 @@ const showFilters = ref(false)
 const showCategories = ref(false)
 const quantitySearch = ref('')
 const sortBy = ref('newest')
-
-// Jiji-style category hover state
 const hoveredCategory = ref(null)
 
 let filterTimeout = null
@@ -228,13 +226,13 @@ const selectCategory = (name) => {
   showCategories.value = false
 }
 
-// Sub-category icons mapping
 const subIcon = (sub) => {
   const icons = {
     'Tomatoes': 'mdi:fruit-cherries', 'Onions': 'mdi:circle-slice-8',
     'Maize': 'mdi:corn', 'Wheat': 'mdi:barley', 'Rice': 'mdi:rice',
-    'Fresh Milk': 'mdi:cup', 'Eggs': 'mdi:egg', 'Honey': 'mdi:beehive-outline',
-    'Tilapia': 'mdi:fish', 'Tea': 'mdi:tea', 'Coffee': 'mdi:coffee',
+    'Fresh Milk': 'mdi:cup', 'Eggs': 'mdi:egg', 'Raw Honey': 'mdi:beehive-outline',
+    'Organic Honey': 'mdi:beehive-outline', 'Tilapia': 'mdi:fish',
+    'Tea': 'mdi:tea', 'Coffee': 'mdi:coffee', 'Sugarcane': 'mdi:grass',
   }
   return icons[sub] ?? 'mdi:sprout'
 }
@@ -326,201 +324,205 @@ const subIcon = (sub) => {
     <div class="max-w-7xl mx-auto px-3 md:px-4 py-4 md:py-8">
 
       <!-- ===== Jiji-style Category Panel ===== -->
-      <div class="bg-white rounded-2xl shadow-sm mb-6 overflow-visible relative z-20"
-        @mouseleave="hoveredCategory = null">
-        <div class="flex">
+      <div class="relative z-20 mb-6" @mouseleave="hoveredCategory = null">
+        <div class="bg-white rounded-2xl shadow-sm">
+          <div class="flex">
 
-          <!-- Left: Main category list -->
-          <div class="w-56 md:w-64 shrink-0 border-r border-gray-100">
+            <!-- Left: Main category list -->
+            <div class="w-56 md:w-64 shrink-0 relative">
 
-            <!-- Header -->
-            <div class="bg-green-600 text-white px-4 py-3 rounded-tl-2xl flex items-center gap-2">
-              <Icon icon="mdi:view-grid" class="w-4 h-4" />
-              <h3 class="font-bold text-sm">All Categories</h3>
-              <!-- Mobile toggle -->
-              <button class="md:hidden ml-auto" @click="showCategories = !showCategories">
-                <Icon :icon="showCategories ? 'mdi:chevron-up' : 'mdi:chevron-down'" class="w-5 h-5" />
-              </button>
-            </div>
-
-            <!-- Skeleton -->
-            <div v-if="loading" :class="{ 'hidden md:block': !showCategories }">
-              <div v-for="n in 8" :key="n"
-                class="flex items-center gap-3 px-4 py-3 border-b border-gray-50 animate-pulse">
-                <div class="w-7 h-7 rounded-lg bg-gray-200 shrink-0"></div>
-                <div class="h-3 bg-gray-200 rounded-full flex-1"></div>
-                <div class="w-4 h-4 bg-gray-200 rounded-full shrink-0"></div>
-              </div>
-            </div>
-
-            <!-- Actual categories -->
-            <div v-else :class="{ 'hidden md:block': !showCategories }">
-              <!-- All categories -->
-              <button @click="selectCategory('')"
-                class="w-full flex items-center justify-between px-4 py-2.5 border-b border-gray-50 hover:bg-green-50 transition group/cat"
-                :class="selectedCategory === '' ? 'bg-green-50 text-green-600 font-semibold' : 'text-gray-700'">
-                <div class="flex items-center gap-2.5">
-                  <div class="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
-                    <Icon icon="mdi:shopping" class="w-4 h-4 text-green-600" />
-                  </div>
-                  <span class="text-sm">All Categories</span>
-                </div>
-                <span class="text-xs text-gray-400">{{ products?.length ?? 0 }}</span>
-              </button>
-
-              <!-- Each category -->
-              <button v-for="cat in categories" :key="cat.name"
-                @mouseenter="hoveredCategory = cat"
-                @click="selectCategory(cat.name)"
-                class="w-full flex items-center justify-between px-4 py-2.5 border-b border-gray-50 hover:bg-green-50 transition group/cat"
-                :class="selectedCategory === cat.name
-                  ? 'bg-green-50 text-green-600 font-semibold'
-                  : hoveredCategory?.name === cat.name
-                    ? 'bg-green-50 text-green-700'
-                    : 'text-gray-700'">
-                <div class="flex items-center gap-2.5">
-                  <img :src="cat.img" :alt="cat.label"
-                    class="w-7 h-7 rounded-lg object-cover shrink-0" />
-                  <span class="text-sm text-left">{{ cat.label }}</span>
-                </div>
-                <div class="flex items-center gap-1 shrink-0">
-                  <span class="text-xs text-gray-400">{{ categoryCount[cat.name] ?? 0 }}</span>
-                  <Icon icon="mdi:chevron-right"
-                    class="w-4 h-4 transition"
-                    :class="hoveredCategory?.name === cat.name ? 'text-green-500' : 'text-gray-300'" />
-                </div>
-              </button>
-            </div>
-          </div>
-
-          <!-- Right: Subcategory flyout -->
-          <div class="flex-1 min-w-0 hidden md:block">
-
-            <!-- No hover state -->
-            <div v-if="!hoveredCategory"
-              class="h-full min-h-[320px] flex flex-col items-center justify-center text-gray-300 select-none">
-              <Icon icon="mdi:hand-pointing-left" class="w-10 h-10 mb-2" />
-              <p class="text-sm">Hover a category to explore</p>
-            </div>
-
-            <!-- Subcategories -->
-            <div v-else class="p-5">
-              <!-- Subcategory header -->
-              <div class="flex items-center gap-3 mb-4 pb-3 border-b border-gray-100">
-                <img :src="hoveredCategory.img" :alt="hoveredCategory.label"
-                  class="w-10 h-10 rounded-xl object-cover shrink-0" />
-                <div class="flex-1">
-                  <h3 class="font-bold text-gray-800 text-base">{{ hoveredCategory.label }}</h3>
-                  <p class="text-xs text-gray-400 mt-0.5">
-                    {{ categoryCount[hoveredCategory.name] ?? 0 }} listings available
-                  </p>
-                </div>
-                <button
-                  @click="selectCategory(hoveredCategory.name)"
-                  class="flex items-center gap-1 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-lg transition shrink-0">
-                  View all
-                  <Icon icon="mdi:arrow-right" class="w-3.5 h-3.5" />
+              <!-- Header -->
+              <div class="bg-green-600 text-white px-4 py-3 rounded-tl-2xl rounded-tr-2xl md:rounded-tr-none flex items-center gap-2">
+                <Icon icon="mdi:view-grid" class="w-4 h-4 shrink-0" />
+                <h3 class="font-bold text-sm">All Categories</h3>
+                <button class="md:hidden ml-auto shrink-0" @click="showCategories = !showCategories">
+                  <Icon :icon="showCategories ? 'mdi:chevron-up' : 'mdi:chevron-down'" class="w-5 h-5" />
                 </button>
               </div>
 
-              <!-- Subcategory grid -->
-              <div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-                <button
-                  v-for="sub in hoveredCategory.sub" :key="sub"
-                  @click="search = sub; selectCategory(hoveredCategory.name)"
-                  class="flex flex-col items-center gap-1.5 p-2.5 rounded-xl hover:bg-green-50 transition text-center group/sub border border-transparent hover:border-green-100">
-                  <div class="w-10 h-10 rounded-xl bg-gray-100 group-hover/sub:bg-green-100 flex items-center justify-center transition shrink-0">
-                    <Icon :icon="subIcon(sub)" class="w-5 h-5 text-gray-400 group-hover/sub:text-green-600 transition" />
+              <!-- Skeleton -->
+              <div v-if="loading" :class="{ 'hidden md:block': !showCategories }">
+                <div v-for="n in 8" :key="n"
+                  class="flex items-center gap-3 px-4 py-3 border-b border-gray-50 animate-pulse">
+                  <div class="w-7 h-7 rounded-lg bg-gray-200 shrink-0"></div>
+                  <div class="h-3 bg-gray-200 rounded-full flex-1"></div>
+                  <div class="w-4 h-4 bg-gray-200 rounded-full shrink-0"></div>
+                </div>
+              </div>
+
+              <!-- Actual categories -->
+              <div v-else :class="{ 'hidden md:block': !showCategories }">
+                <!-- All categories -->
+                <button @click="selectCategory('')"
+                  class="w-full flex items-center justify-between px-4 py-2.5 border-b border-gray-50 hover:bg-green-50 transition"
+                  :class="selectedCategory === '' ? 'bg-green-50 text-green-600 font-semibold' : 'text-gray-700'">
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
+                      <Icon icon="mdi:shopping" class="w-4 h-4 text-green-600" />
+                    </div>
+                    <span class="text-sm">All Categories</span>
                   </div>
-                  <span class="text-xs text-gray-600 group-hover/sub:text-green-700 transition leading-tight font-medium">
-                    {{ sub }}
-                  </span>
+                  <span class="text-xs text-gray-400">{{ products?.length ?? 0 }}</span>
+                </button>
+
+                <!-- Each category -->
+                <button v-for="cat in categories" :key="cat.name"
+                  @mouseenter="hoveredCategory = cat"
+                  @click="selectCategory(cat.name)"
+                  class="w-full flex items-center justify-between px-4 py-2.5 border-b border-gray-50 hover:bg-green-50 transition"
+                  :class="selectedCategory === cat.name
+                    ? 'bg-green-50 text-green-600 font-semibold'
+                    : hoveredCategory?.name === cat.name
+                      ? 'bg-green-50 text-green-700'
+                      : 'text-gray-700'">
+                  <div class="flex items-center gap-2.5">
+                    <img :src="cat.img" :alt="cat.label"
+                      class="w-7 h-7 rounded-lg object-cover shrink-0" />
+                    <span class="text-sm text-left">{{ cat.label }}</span>
+                  </div>
+                  <div class="flex items-center gap-1 shrink-0">
+                    <span class="text-xs text-gray-400">{{ categoryCount[cat.name] ?? 0 }}</span>
+                    <Icon icon="mdi:chevron-right" class="w-4 h-4 transition"
+                      :class="hoveredCategory?.name === cat.name ? 'text-green-500' : 'text-gray-300'" />
+                  </div>
                 </button>
               </div>
-            </div>
-          </div>
 
+              <!-- FLYOUT — absolutely positioned, overlays listings -->
+              <Transition name="flyout">
+                <div v-if="hoveredCategory"
+                  class="absolute left-full top-0 w-[500px] bg-white shadow-2xl border border-gray-100 rounded-r-2xl z-50 hidden md:block"
+                  style="min-height: 100%;">
+
+                  <!-- Flyout header -->
+                  <div class="flex items-center gap-3 px-5 py-4 border-b border-gray-100 bg-gray-50 rounded-tr-2xl">
+                    <img :src="hoveredCategory.img" :alt="hoveredCategory.label"
+                      class="w-10 h-10 rounded-xl object-cover shrink-0" />
+                    <div class="flex-1 min-w-0">
+                      <h3 class="font-bold text-gray-800">{{ hoveredCategory.label }}</h3>
+                      <p class="text-xs text-gray-400 mt-0.5">
+                        {{ categoryCount[hoveredCategory.name] ?? 0 }} listings available
+                      </p>
+                    </div>
+                    <button
+                      @click="selectCategory(hoveredCategory.name)"
+                      class="flex items-center gap-1 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-lg transition shrink-0">
+                      View all
+                      <Icon icon="mdi:arrow-right" class="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <!-- Subcategory grid -->
+                  <div class="p-4 grid grid-cols-4 gap-2">
+                    <button
+                      v-for="sub in hoveredCategory.sub" :key="sub"
+                      @click="search = sub; selectCategory(hoveredCategory.name)"
+                      class="flex flex-col items-center gap-1.5 p-2.5 rounded-xl hover:bg-green-50 transition text-center group/sub border border-transparent hover:border-green-100">
+                      <div class="w-10 h-10 rounded-xl bg-gray-100 group-hover/sub:bg-green-100 flex items-center justify-center transition shrink-0">
+                        <Icon :icon="subIcon(sub)" class="w-5 h-5 text-gray-400 group-hover/sub:text-green-600 transition" />
+                      </div>
+                      <span class="text-xs text-gray-600 group-hover/sub:text-green-700 transition leading-tight font-medium">
+                        {{ sub }}
+                      </span>
+                    </button>
+                  </div>
+
+                </div>
+              </Transition>
+
+            </div>
+
+            <!-- Right: placeholder visible on desktop when nothing is hovered -->
+            <div class="hidden md:flex flex-1 items-center justify-center text-gray-200 select-none py-8">
+              <div class="text-center">
+                <Icon icon="mdi:hand-pointing-left" class="w-10 h-10 mb-2 mx-auto" />
+                <p class="text-sm">Hover a category to explore</p>
+              </div>
+            </div>
+
+          </div>
         </div>
       </div>
       <!-- ===== End Category Panel ===== -->
 
-      <!-- Listings section -->
-      <div class="flex-1 min-w-0">
-
-        <!-- Active category chip -->
-        <div v-if="selectedCategory" class="flex items-center gap-2 mb-3">
-          <span class="flex items-center gap-2 bg-green-100 text-green-700 text-sm font-semibold px-3 py-1.5 rounded-full">
-            <Icon icon="mdi:tag" class="w-4 h-4" />
-            {{ selectedCategory.replace(/^\p{Emoji}\s*/u, '') }}
-            <button @click="selectCategory('')" class="ml-1 hover:text-red-500 transition">
-              <Icon icon="mdi:close" class="w-3.5 h-3.5" />
-            </button>
-          </span>
-        </div>
-
-        <!-- Header -->
-        <div class="flex justify-between items-center mb-3 md:mb-4">
-          <h2 class="text-base md:text-xl font-bold text-gray-800">
-            {{ selectedCategory ? selectedCategory.replace(/^\p{Emoji}\s*/u, '') : 'Latest Listings' }}
-          </h2>
-          <div class="flex items-center gap-2 md:gap-3">
-            <span class="text-xs md:text-sm text-gray-400 hidden sm:block">
-              {{ loading ? '...' : `${filtered?.length ?? 0} listings` }}
-            </span>
-            <select v-model="sortBy"
-              class="text-xs md:text-sm border border-gray-200 rounded-lg px-2 md:px-3 py-1.5 md:py-2 text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
-              <option value="newest">Newest</option>
-              <option value="price_asc">Price: Low to High</option>
-              <option value="price_desc">Price: High to Low</option>
-              <option value="most_viewed">Most viewed</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Grid -->
-        <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
-
-          <template v-if="loading">
-            <SkeletonCard v-for="n in 8" :key="n" />
-          </template>
-
-          <template v-else-if="filtered?.length === 0">
-            <div class="col-span-full bg-white rounded-2xl p-10 md:p-20 text-center shadow-sm">
-              <Icon icon="mdi:sprout" class="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p class="text-gray-500 text-sm md:text-base">No listings found</p>
-              <button v-if="activeFilterCount > 0 || search || selectedCategory"
-                @click="clearFilters(); selectCategory('')"
-                class="mt-4 text-green-600 hover:underline text-sm">
-                Clear all filters
-              </button>
-            </div>
-          </template>
-
-          <template v-else>
-            <ProductCard v-for="product in filtered" :key="product.id" :product="product" />
-          </template>
-
-        </div>
-
-        <!-- Infinite scroll sentinel -->
-        <div ref="sentinel" class="h-4 mt-4"></div>
-
-        <!-- Loading more -->
-        <div v-if="loadingMore" class="flex justify-center py-6">
-          <div class="flex items-center gap-3 text-gray-400 text-sm">
-            <Icon icon="mdi:loading" class="w-5 h-5 animate-spin" />
-            Loading more listings...
-          </div>
-        </div>
-
-        <!-- End of results -->
-        <div v-if="!hasMore && !loading && filtered.length > 0"
-          class="text-center py-6 text-xs text-gray-400">
-          All listings loaded
-        </div>
-
+      <!-- Active category chip -->
+      <div v-if="selectedCategory" class="flex items-center gap-2 mb-3">
+        <span class="flex items-center gap-2 bg-green-100 text-green-700 text-sm font-semibold px-3 py-1.5 rounded-full">
+          <Icon icon="mdi:tag" class="w-4 h-4" />
+          {{ selectedCategory.replace(/^\p{Emoji}\s*/u, '') }}
+          <button @click="selectCategory('')" class="ml-1 hover:text-red-500 transition">
+            <Icon icon="mdi:close" class="w-3.5 h-3.5" />
+          </button>
+        </span>
       </div>
-    </div>
 
+      <!-- Listings header -->
+      <div class="flex justify-between items-center mb-3 md:mb-4">
+        <h2 class="text-base md:text-xl font-bold text-gray-800">
+          {{ selectedCategory ? selectedCategory.replace(/^\p{Emoji}\s*/u, '') : 'Latest Listings' }}
+        </h2>
+        <div class="flex items-center gap-2 md:gap-3">
+          <span class="text-xs md:text-sm text-gray-400 hidden sm:block">
+            {{ loading ? '...' : `${filtered?.length ?? 0} listings` }}
+          </span>
+          <select v-model="sortBy"
+            class="text-xs md:text-sm border border-gray-200 rounded-lg px-2 md:px-3 py-1.5 md:py-2 text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
+            <option value="newest">Newest</option>
+            <option value="price_asc">Price: Low to High</option>
+            <option value="price_desc">Price: High to Low</option>
+            <option value="most_viewed">Most viewed</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Grid -->
+      <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
+        <template v-if="loading">
+          <SkeletonCard v-for="n in 8" :key="n" />
+        </template>
+        <template v-else-if="filtered?.length === 0">
+          <div class="col-span-full bg-white rounded-2xl p-10 md:p-20 text-center shadow-sm">
+            <Icon icon="mdi:sprout" class="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <p class="text-gray-500 text-sm md:text-base">No listings found</p>
+            <button v-if="activeFilterCount > 0 || search || selectedCategory"
+              @click="clearFilters(); selectCategory('')"
+              class="mt-4 text-green-600 hover:underline text-sm">
+              Clear all filters
+            </button>
+          </div>
+        </template>
+        <template v-else>
+          <ProductCard v-for="product in filtered" :key="product.id" :product="product" />
+        </template>
+      </div>
+
+      <!-- Infinite scroll sentinel -->
+      <div ref="sentinel" class="h-4 mt-4"></div>
+
+      <!-- Loading more -->
+      <div v-if="loadingMore" class="flex justify-center py-6">
+        <div class="flex items-center gap-3 text-gray-400 text-sm">
+          <Icon icon="mdi:loading" class="w-5 h-5 animate-spin" />
+          Loading more listings...
+        </div>
+      </div>
+
+      <!-- End of results -->
+      <div v-if="!hasMore && !loading && filtered.length > 0"
+        class="text-center py-6 text-xs text-gray-400">
+        All listings loaded
+      </div>
+
+    </div>
   </div>
 </template>
+
+<style scoped>
+.flyout-enter-active, .flyout-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.flyout-enter-from, .flyout-leave-to {
+  opacity: 0;
+  transform: translateX(-6px);
+}
+</style>
