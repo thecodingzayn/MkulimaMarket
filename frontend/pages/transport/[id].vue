@@ -46,6 +46,24 @@ const { data: applications, refresh: refreshApps } = await useAsyncData('applica
 const isOwner = computed(() => user?.id === request.value?.user_id)
 const hasApplied = computed(() => applications.value?.some(a => a.user_id === user?.id))
 
+// Once a request is assigned, only show the accepted application to the owner
+// Non-owners only see their own application status
+const visibleApplications = computed(() => {
+  if (!applications.value?.length) return []
+  const isAssigned = request.value?.status === 'assigned'
+  if (isAssigned) {
+    // Owner sees only the accepted one
+    return applications.value.filter(a => a.status === 'accepted')
+  }
+  // Open request — owner sees all applications
+  return applications.value
+})
+
+// The current user's own application (for non-owners)
+const myApplication = computed(() =>
+  applications.value?.find(a => a.user_id === user?.id) ?? null
+)
+
 const appForm = ref({ message: '', price_offer: '' })
 const appLoading = ref(false)
 const appError = ref('')
@@ -72,9 +90,19 @@ const applyNow = async () => {
 const updateApplication = async (appId, status) => {
   await supabase.from('transport_applications').update({ status }).eq('id', appId)
   if (status === 'accepted') {
+    // Mark request as assigned
     await supabase.from('transport_requests').update({ status: 'assigned' }).eq('id', route.params.id)
+    // Reject all other pending applications automatically
+    await supabase
+      .from('transport_applications')
+      .update({ status: 'rejected' })
+      .eq('request_id', route.params.id)
+      .eq('status', 'pending')
+      .neq('id', appId)
   }
   await refreshApps()
+  // Re-fetch request to update status badge
+  await refreshNuxtData('transport-request')
 }
 
 const formatDate = (d) => new Date(d).toLocaleDateString('en-KE', {
@@ -120,7 +148,7 @@ onMounted(async () => {
               <Icon
                 :icon="request.status === 'open' ? 'mdi:check-circle' : request.status === 'assigned' ? 'mdi:truck-check' : 'mdi:clock-outline'"
                 class="w-3.5 h-3.5" />
-              {{ request.status }}
+              {{ request.status === 'assigned' ? 'Assigned' : request.status }}
             </span>
           </div>
 
@@ -190,42 +218,95 @@ onMounted(async () => {
           </div>
         </div>
 
-        <!-- Already applied banner -->
-        <div v-if="hasApplied && !appSuccess"
-          class="bg-blue-50 text-blue-700 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2">
-          <Icon icon="mdi:check-circle" class="w-5 h-5 shrink-0" />
-          You have already applied for this request.
-        </div>
+        <!-- ── NON-OWNER VIEWS ── -->
+        <template v-if="!isOwner && user">
 
-        <!-- Apply form -->
-        <div v-if="!isOwner && user && !hasApplied && !appSuccess && request.status === 'open'"
-          class="bg-white rounded-2xl shadow-sm p-4 md:p-6">
-          <h2 class="font-bold text-gray-800 mb-3 md:mb-4 text-base md:text-lg flex items-center gap-2">
-            <Icon icon="mdi:truck-outline" class="w-5 h-5 text-green-600" />
-            Apply for this job
-          </h2>
-          <div class="space-y-3">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Your price offer (KSh)</label>
-              <input v-model="appForm.price_offer" type="number" placeholder="e.g. 4500"
-                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+          <!-- Request already assigned — show outcome to applicant -->
+          <div v-if="request.status === 'assigned'">
+
+            <!-- Their application was accepted -->
+            <div v-if="myApplication?.status === 'accepted'"
+              class="bg-green-50 border border-green-200 rounded-2xl p-4 md:p-6 flex items-start gap-3">
+              <Icon icon="mdi:check-circle" class="w-6 h-6 text-green-600 shrink-0 mt-0.5" />
+              <div>
+                <p class="font-bold text-green-700 text-sm md:text-base">Your application was accepted! 🎉</p>
+                <p class="text-green-600 text-sm mt-1">
+                  Contact {{ request.profiles?.name }} on
+                  <a :href="`tel:${request.contact_phone}`" class="font-bold underline">
+                    {{ request.contact_phone }}
+                  </a>
+                  to confirm pickup details.
+                </p>
+              </div>
             </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">
-                Message <span class="text-gray-400 font-normal">(optional)</span>
-              </label>
-              <textarea v-model="appForm.message" rows="3"
-                placeholder="Describe your vehicle, capacity, experience..."
-                class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none" />
+
+            <!-- Their application was rejected or they didn't apply -->
+            <div v-else
+              class="bg-gray-50 border border-gray-200 rounded-2xl p-4 md:p-6 flex items-start gap-3">
+              <Icon icon="mdi:truck-check" class="w-6 h-6 text-blue-500 shrink-0 mt-0.5" />
+              <div>
+                <p class="font-bold text-gray-700 text-sm md:text-base">This request has been assigned</p>
+                <p class="text-gray-500 text-sm mt-1">A transporter has already been selected for this job.</p>
+                <NuxtLink to="/transport"
+                  class="inline-flex items-center gap-1 text-green-600 hover:underline text-sm mt-2">
+                  <Icon icon="mdi:arrow-left" class="w-4 h-4" />
+                  Browse other requests
+                </NuxtLink>
+              </div>
             </div>
-            <p v-if="appError" class="text-red-500 text-sm">{{ appError }}</p>
-            <button @click="applyNow" :disabled="appLoading"
-              class="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white py-3 rounded-xl font-semibold transition text-sm flex items-center justify-center gap-2">
-              <Icon icon="mdi:truck-outline" class="w-4 h-4" />
-              {{ appLoading ? 'Submitting...' : 'Submit Application' }}
-            </button>
+
           </div>
-        </div>
+
+          <!-- Request still open -->
+          <template v-else>
+
+            <!-- Already applied banner -->
+            <div v-if="hasApplied && !appSuccess"
+              class="bg-blue-50 text-blue-700 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2">
+              <Icon icon="mdi:check-circle" class="w-5 h-5 shrink-0" />
+              You have already applied for this request. The requester will contact you if selected.
+            </div>
+
+            <!-- Apply form -->
+            <div v-if="!hasApplied && !appSuccess"
+              class="bg-white rounded-2xl shadow-sm p-4 md:p-6">
+              <h2 class="font-bold text-gray-800 mb-3 md:mb-4 text-base md:text-lg flex items-center gap-2">
+                <Icon icon="mdi:truck-outline" class="w-5 h-5 text-green-600" />
+                Apply for this job
+              </h2>
+              <div class="space-y-3">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Your price offer (KSh)</label>
+                  <input v-model="appForm.price_offer" type="number" placeholder="e.g. 4500"
+                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Message <span class="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <textarea v-model="appForm.message" rows="3"
+                    placeholder="Describe your vehicle, capacity, experience..."
+                    class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none" />
+                </div>
+                <p v-if="appError" class="text-red-500 text-sm">{{ appError }}</p>
+                <button @click="applyNow" :disabled="appLoading"
+                  class="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white py-3 rounded-xl font-semibold transition text-sm flex items-center justify-center gap-2">
+                  <Icon icon="mdi:truck-outline" class="w-4 h-4" />
+                  {{ appLoading ? 'Submitting...' : 'Submit Application' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Success message after submitting -->
+            <div v-if="appSuccess"
+              class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2">
+              <Icon icon="mdi:check-circle" class="w-5 h-5 shrink-0" />
+              Application submitted! {{ request.profiles?.name ?? 'The requester' }} will contact you if selected.
+            </div>
+
+          </template>
+
+        </template>
 
         <!-- Not logged in -->
         <div v-if="!user && request.status === 'open'"
@@ -239,82 +320,108 @@ onMounted(async () => {
           </NuxtLink>
         </div>
 
-        <!-- Success message -->
-        <div v-if="appSuccess"
-          class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2">
-          <Icon icon="mdi:check-circle" class="w-5 h-5 shrink-0" />
-          Application submitted! {{ request.profiles?.name ?? 'The requester' }} will contact you if selected.
-        </div>
+        <!-- ── OWNER VIEWS ── -->
+        <template v-if="isOwner">
 
-        <!-- Applications list (owner only) -->
-        <div v-if="isOwner && applications.length > 0"
-          class="bg-white rounded-2xl shadow-sm p-4 md:p-6">
-          <h2 class="font-bold text-gray-800 mb-3 md:mb-4 text-base md:text-lg flex items-center gap-2">
-            <Icon icon="mdi:account-group" class="w-5 h-5 text-green-600" />
-            Applications
-            <span class="text-sm font-normal text-gray-400">({{ applications.length }})</span>
-          </h2>
-          <div class="space-y-3">
-            <div v-for="app in applications" :key="app.id"
-              class="border border-gray-100 rounded-xl p-3 md:p-4">
-
-              <div class="flex justify-between items-start flex-wrap gap-2">
-                <div class="flex items-center gap-2 md:gap-3">
-                  <div class="w-8 h-8 md:w-9 md:h-9 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                    <Icon icon="mdi:truck-outline" class="w-4 h-4 text-blue-600" />
-                  </div>
-                  <div>
-                    <p class="font-semibold text-gray-700 text-sm">{{ app.profiles?.name }}</p>
-                    <p class="text-xs text-gray-400 flex items-center gap-1">
-                      <Icon icon="mdi:phone-outline" class="w-3 h-3" />
-                      {{ app.profiles?.phone }}
-                    </p>
-                  </div>
-                </div>
-                <div class="text-right">
-                  <p v-if="app.price_offer" class="font-bold text-green-600 text-sm md:text-base">
-                    KSh {{ Number(app.price_offer).toLocaleString('en-KE') }}
-                  </p>
-                  <span class="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 justify-end"
-                    :class="app.status === 'accepted' ? 'bg-green-100 text-green-700'
-                      : app.status === 'rejected' ? 'bg-red-100 text-red-600'
-                      : 'bg-gray-100 text-gray-500'">
-                    <Icon
-                      :icon="app.status === 'accepted' ? 'mdi:check-circle' : app.status === 'rejected' ? 'mdi:close-circle' : 'mdi:clock-outline'"
-                      class="w-3 h-3" />
-                    {{ app.status }}
-                  </span>
-                </div>
+          <!-- Assigned banner — show accepted transporter info -->
+          <div v-if="request.status === 'assigned' && visibleApplications.length > 0"
+            class="bg-blue-50 border border-blue-200 rounded-2xl p-4 md:p-6">
+            <h2 class="font-bold text-blue-700 mb-3 text-base flex items-center gap-2">
+              <Icon icon="mdi:truck-check" class="w-5 h-5" />
+              Transporter Assigned
+            </h2>
+            <div v-for="app in visibleApplications" :key="app.id"
+              class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                <Icon icon="mdi:account" class="w-5 h-5 text-blue-600" />
               </div>
-
-              <p v-if="app.message" class="text-sm text-gray-500 mt-2 ml-10 md:ml-12 italic">
-                "{{ app.message }}"
-              </p>
-
-              <div v-if="app.status === 'pending' && request.status === 'open'"
-                class="flex gap-2 mt-3 ml-10 md:ml-12">
-                <button @click="updateApplication(app.id, 'accepted')"
-                  class="flex items-center gap-1 px-3 md:px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs md:text-sm rounded-lg font-semibold transition">
-                  <Icon icon="mdi:check" class="w-4 h-4" />
-                  Accept
-                </button>
-                <button @click="updateApplication(app.id, 'rejected')"
-                  class="flex items-center gap-1 px-3 md:px-4 py-1.5 bg-red-50 hover:bg-red-100 text-red-500 text-xs md:text-sm rounded-lg font-semibold transition">
-                  <Icon icon="mdi:close" class="w-4 h-4" />
-                  Reject
-                </button>
+              <div>
+                <p class="font-semibold text-gray-700 text-sm">{{ app.profiles?.name }}</p>
+                <a :href="`tel:${app.profiles?.phone}`"
+                  class="text-xs text-blue-600 flex items-center gap-1 hover:underline">
+                  <Icon icon="mdi:phone-outline" class="w-3 h-3" />
+                  {{ app.profiles?.phone }}
+                </a>
+              </div>
+              <div v-if="app.price_offer" class="ml-auto">
+                <p class="font-bold text-green-600 text-sm">
+                  KSh {{ Number(app.price_offer).toLocaleString('en-KE') }}
+                </p>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- No applications yet (owner) -->
-        <div v-else-if="isOwner && applications.length === 0"
-          class="bg-white rounded-2xl shadow-sm p-6 text-center">
-          <Icon icon="mdi:account-search" class="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p class="text-gray-400 text-sm">No applications yet.</p>
-          <p class="text-gray-400 text-xs mt-1">Share this page to get transporters to apply!</p>
-        </div>
+          <!-- Applications list — only shown when request is open -->
+          <div v-else-if="request.status === 'open' && visibleApplications.length > 0"
+            class="bg-white rounded-2xl shadow-sm p-4 md:p-6">
+            <h2 class="font-bold text-gray-800 mb-3 md:mb-4 text-base md:text-lg flex items-center gap-2">
+              <Icon icon="mdi:account-group" class="w-5 h-5 text-green-600" />
+              Applications
+              <span class="text-sm font-normal text-gray-400">({{ visibleApplications.length }})</span>
+            </h2>
+            <div class="space-y-3">
+              <div v-for="app in visibleApplications" :key="app.id"
+                class="border border-gray-100 rounded-xl p-3 md:p-4">
+
+                <div class="flex justify-between items-start flex-wrap gap-2">
+                  <div class="flex items-center gap-2 md:gap-3">
+                    <div class="w-8 h-8 md:w-9 md:h-9 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                      <Icon icon="mdi:truck-outline" class="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div>
+                      <p class="font-semibold text-gray-700 text-sm">{{ app.profiles?.name }}</p>
+                      <p class="text-xs text-gray-400 flex items-center gap-1">
+                        <Icon icon="mdi:phone-outline" class="w-3 h-3" />
+                        {{ app.profiles?.phone }}
+                      </p>
+                    </div>
+                  </div>
+                  <div class="text-right">
+                    <p v-if="app.price_offer" class="font-bold text-green-600 text-sm md:text-base">
+                      KSh {{ Number(app.price_offer).toLocaleString('en-KE') }}
+                    </p>
+                    <span class="text-xs px-2 py-0.5 rounded-full flex items-center gap-1 justify-end"
+                      :class="app.status === 'accepted' ? 'bg-green-100 text-green-700'
+                        : app.status === 'rejected' ? 'bg-red-100 text-red-600'
+                        : 'bg-gray-100 text-gray-500'">
+                      <Icon
+                        :icon="app.status === 'accepted' ? 'mdi:check-circle' : app.status === 'rejected' ? 'mdi:close-circle' : 'mdi:clock-outline'"
+                        class="w-3 h-3" />
+                      {{ app.status }}
+                    </span>
+                  </div>
+                </div>
+
+                <p v-if="app.message" class="text-sm text-gray-500 mt-2 ml-10 md:ml-12 italic">
+                  "{{ app.message }}"
+                </p>
+
+                <div v-if="app.status === 'pending' && request.status === 'open'"
+                  class="flex gap-2 mt-3 ml-10 md:ml-12">
+                  <button @click="updateApplication(app.id, 'accepted')"
+                    class="flex items-center gap-1 px-3 md:px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs md:text-sm rounded-lg font-semibold transition">
+                    <Icon icon="mdi:check" class="w-4 h-4" />
+                    Accept
+                  </button>
+                  <button @click="updateApplication(app.id, 'rejected')"
+                    class="flex items-center gap-1 px-3 md:px-4 py-1.5 bg-red-50 hover:bg-red-100 text-red-500 text-xs md:text-sm rounded-lg font-semibold transition">
+                    <Icon icon="mdi:close" class="w-4 h-4" />
+                    Reject
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- No applications yet -->
+          <div v-else-if="request.status === 'open'"
+            class="bg-white rounded-2xl shadow-sm p-6 text-center">
+            <Icon icon="mdi:account-search" class="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <p class="text-gray-400 text-sm">No applications yet.</p>
+            <p class="text-gray-400 text-xs mt-1">Share this page to get transporters to apply!</p>
+          </div>
+
+        </template>
 
       </div>
 
