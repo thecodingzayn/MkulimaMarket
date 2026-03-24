@@ -432,14 +432,7 @@ const subIcon = (sub) => {
 
             </div>
 
-            <!-- Right: placeholder visible on desktop when nothing is hovered -->
-            <div class="hidden md:flex flex-1 items-center justify-center text-gray-200 select-none py-8">
-              <div class="text-center">
-                <Icon icon="mdi:hand-pointing-left" class="w-10 h-10 mb-2 mx-auto" />
-                <p class="text-sm">Hover a category to explore</p>
-              </div>
-            </div>
-
+            
           </div>
         </div>
       </div>
