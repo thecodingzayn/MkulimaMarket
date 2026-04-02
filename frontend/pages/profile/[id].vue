@@ -5,7 +5,6 @@ const supabase = useSupabaseClient()
 const route = useRoute()
 const { data: { user } } = await supabase.auth.getUser()
 
-// Fetch seller profile
 const { data: profile } = await useAsyncData('seller-profile', async () => {
   const { data } = await supabase
     .from('profiles')
@@ -17,18 +16,16 @@ const { data: profile } = await useAsyncData('seller-profile', async () => {
 
 if (!profile.value) navigateTo('/')
 
-// Fetch seller's active listings
 const { data: listings } = await useAsyncData('seller-listings', async () => {
   const { data } = await supabase
     .from('products')
-    .select('*')
+    .select('*, listing_images(id, url, position)')
     .eq('user_id', route.params.id)
     .eq('status', 'active')
     .order('created_at', { ascending: false })
   return data ?? []
 })
 
-// Fetch seller's ratings
 const { data: ratings } = await useAsyncData('seller-ratings', async () => {
   const { data } = await supabase
     .from('ratings')
@@ -48,7 +45,6 @@ const { data: ratings } = await useAsyncData('seller-ratings', async () => {
   return data.map(r => ({ ...r, reviewer: profileMap[r.reviewer_id] ?? null }))
 })
 
-// Fetch total views and contacts across all seller listings
 const { data: stats } = await useAsyncData('seller-stats', async () => {
   if (!listings.value?.length) return { views: 0, contacts: 0 }
   const ids = listings.value.map(l => l.id)
@@ -103,12 +99,13 @@ const isOwnProfile = computed(() => user?.id === route.params.id)
         <!-- LEFT: Profile card -->
         <div class="w-full md:w-72 shrink-0 space-y-4">
 
-          <!-- Profile info -->
           <div class="bg-white rounded-2xl shadow-sm p-6 text-center">
-            <div class="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4 overflow-hidden">
+
+            <!-- Avatar -->
+            <div class="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4 overflow-hidden border-4 border-white shadow-md">
               <img v-if="profile.avatar_url" :src="profile.avatar_url"
                 class="w-full h-full object-cover" />
-              <Icon v-else icon="mdi:account" class="w-14 h-14 text-green-600" />
+              <Icon v-else icon="mdi:account" class="w-14 h-14 text-green-400" />
             </div>
 
             <h1 class="text-xl font-bold text-gray-800">{{ profile.name }}</h1>
@@ -133,7 +130,7 @@ const isOwnProfile = computed(() => user?.id === route.params.id)
             </div>
             <div v-else class="mt-4 text-xs text-gray-400">No reviews yet</div>
 
-            <!-- Edit profile (own profile) -->
+            <!-- Edit profile button (own profile) -->
             <NuxtLink v-if="isOwnProfile" to="/profile/edit"
               class="mt-4 flex items-center justify-center gap-2 w-full border border-gray-200 hover:bg-gray-50 text-gray-600 py-2.5 rounded-xl font-semibold transition text-sm">
               <Icon icon="mdi:pencil" class="w-4 h-4" />
@@ -210,10 +207,10 @@ const isOwnProfile = computed(() => user?.id === route.params.id)
             <div v-else class="divide-y">
               <div v-for="rating in ratings" :key="rating.id" class="px-6 py-4">
                 <div class="flex items-start gap-3">
-                  <div class="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                  <div class="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center shrink-0 overflow-hidden">
                     <img v-if="rating.reviewer?.avatar_url"
                       :src="rating.reviewer.avatar_url"
-                      class="w-full h-full object-cover rounded-full" />
+                      class="w-full h-full object-cover" />
                     <Icon v-else icon="mdi:account" class="w-5 h-5 text-green-600" />
                   </div>
                   <div class="flex-1 min-w-0">
@@ -223,12 +220,8 @@ const isOwnProfile = computed(() => user?.id === route.params.id)
                       </p>
                       <span class="text-xs text-gray-400 shrink-0">{{ timeAgo(rating.created_at) }}</span>
                     </div>
-                    <p class="text-yellow-400 text-sm mt-0.5">
-                      {{ starsDisplay(rating.score) }}
-                    </p>
-                    <p v-if="rating.comment" class="text-sm text-gray-600 mt-1">
-                      "{{ rating.comment }}"
-                    </p>
+                    <p class="text-yellow-400 text-sm mt-0.5">{{ starsDisplay(rating.score) }}</p>
+                    <p v-if="rating.comment" class="text-sm text-gray-600 mt-1">"{{ rating.comment }}"</p>
                   </div>
                 </div>
               </div>
