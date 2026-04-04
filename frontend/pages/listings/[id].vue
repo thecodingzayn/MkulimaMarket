@@ -236,7 +236,39 @@ const images = computed(() => {
   return [...imgs].sort((a, b) => a.position - b.position).map(i => i.url)
 })
 
-const reportListing = () => alert('Thank you for reporting. Our team will review this listing.')
+const showReportModal = ref(false)
+const reportReason = ref('')
+const reportOther = ref('')
+const reportSubmitting = ref(false)
+const reportDone = ref(false)
+
+const reportReasons = [
+  'Fraudulent or scam listing',
+  'Prohibited or illegal item',
+  'Misleading price or description',
+  'Duplicate listing',
+  'Wrong category',
+  'Offensive content',
+  'Other',
+]
+
+const submitReport = async () => {
+  if (!reportReason.value) return
+  reportSubmitting.value = true
+  try {
+    await supabase.from('listing_reports').insert({
+      listing_id: product.value.id,
+      reporter_id: user?.id ?? null,
+      reason: reportReason.value,
+      details: reportReason.value === 'Other' ? reportOther.value : null,
+    })
+    reportDone.value = true
+  } catch (e) {
+    console.error(e)
+  } finally {
+    reportSubmitting.value = false
+  }
+}
 
 const priceHistoryChartPath = computed(() => {
   const hist = marketData.value?.history
@@ -585,13 +617,7 @@ const formatPrice = (p) => p ? `KSh ${Number(p).toLocaleString('en-KE')}` : '—
                 <Icon icon="mdi:message-outline" class="w-4 h-4" />View Messages
               </NuxtLink>
 
-              <button @click="boostModal = true"
-                class="flex items-center justify-center gap-2 w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold transition text-sm mb-4">
-                <Icon icon="mdi:fire" class="w-4 h-4" />Boost this Listing
-              </button>
-              <p v-if="product.is_boosted && product.boost_ends_at" class="text-xs text-center text-orange-500 mb-3 flex items-center justify-center gap-1">
-                <Icon icon="mdi:fire" class="w-3.5 h-3.5" />Boosted until {{ new Date(product.boost_ends_at).toLocaleDateString('en-KE') }}
-              </p>
+    
 
               <div class="grid grid-cols-2 gap-3 mb-4">
                 <div class="bg-blue-50 rounded-xl p-3 text-center">
@@ -675,9 +701,9 @@ const formatPrice = (p) => p ? `KSh ${Number(p).toLocaleString('en-KE')}` : '—
               <button @click="showUnavailableModal = true" class="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 text-sm font-medium transition">
                 Mark unavailable
               </button>
-              <button @click="reportListing" class="flex-1 py-2.5 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 text-sm font-medium transition flex items-center justify-center gap-1">
-                <Icon icon="mdi:flag-outline" class="w-4 h-4" />Report Abuse
-              </button>
+              <button @click="showReportModal = true" class="flex-1 py-2.5 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 text-sm font-medium transition flex items-center justify-center gap-1">
+  <Icon icon="mdi:flag-outline" class="w-4 h-4" />Report Abuse
+</button>
             </div>
 
             <div class="bg-white rounded-2xl shadow-sm p-5">
@@ -715,8 +741,7 @@ const formatPrice = (p) => p ? `KSh ${Number(p).toLocaleString('en-KE')}` : '—
       </div>
 
     </div>
-
-    <BoostModal v-model="boostModal" :listing="product" :user="user" @boosted="refreshNuxtData('product')" />
+    
     <MessageDrawer v-model="messageDrawerOpen" :listing="product" :user="user" :other-user-id="product?.user_id" />
 
     <!-- Price History Modal -->
@@ -795,6 +820,88 @@ const formatPrice = (p) => p ? `KSh ${Number(p).toLocaleString('en-KE')}` : '—
         </div>
       </Transition>
     </Teleport>
+
+    <!-- Report Abuse Modal -->
+<Teleport to="body">
+  <Transition name="fade">
+    <div v-if="showReportModal"
+      class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center px-4"
+      @click.self="showReportModal = false; reportDone = false; reportReason = ''; reportOther = ''">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 relative">
+
+        <button
+          @click="showReportModal = false; reportDone = false; reportReason = ''; reportOther = ''"
+          class="absolute top-4 right-4 w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400 transition">
+          <Icon icon="mdi:close" class="w-5 h-5" />
+        </button>
+
+        <!-- Done state -->
+        <div v-if="reportDone" class="text-center py-4">
+          <div class="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+            <Icon icon="mdi:check-circle" class="w-8 h-8 text-green-600" />
+          </div>
+          <h3 class="font-bold text-gray-800 text-lg mb-2">Report submitted</h3>
+          <p class="text-sm text-gray-500 mb-6">Thank you. Our team will review this listing and take appropriate action.</p>
+          <button
+            @click="showReportModal = false; reportDone = false; reportReason = ''; reportOther = ''"
+            class="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold transition text-sm">
+            Done
+          </button>
+        </div>
+
+        <!-- Form state -->
+        <template v-else>
+          <div class="flex items-center gap-3 mb-5">
+            <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+              <Icon icon="mdi:flag-outline" class="w-5 h-5 text-red-500" />
+            </div>
+            <div>
+              <h3 class="font-bold text-gray-800">Report this listing</h3>
+              <p class="text-xs text-gray-400 mt-0.5">Select the reason for reporting</p>
+            </div>
+          </div>
+
+          <div class="space-y-2 mb-4">
+            <button v-for="reason in reportReasons" :key="reason"
+              @click="reportReason = reason"
+              class="w-full text-left px-4 py-3 rounded-xl border text-sm transition flex items-center justify-between"
+              :class="reportReason === reason
+                ? 'border-red-400 bg-red-50 text-red-700 font-semibold'
+                : 'border-gray-200 text-gray-700 hover:bg-gray-50'">
+              {{ reason }}
+              <Icon v-if="reportReason === reason" icon="mdi:check-circle" class="w-4 h-4 text-red-500 shrink-0" />
+            </button>
+          </div>
+
+          <!-- Other details -->
+          <div v-if="reportReason === 'Other'" class="mb-4">
+            <textarea v-model="reportOther" rows="3"
+              placeholder="Please describe the issue..."
+              class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none" />
+          </div>
+
+          <div class="flex gap-3">
+            <button
+              @click="showReportModal = false; reportReason = ''; reportOther = ''"
+              class="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition text-sm">
+              Cancel
+            </button>
+            <button
+              @click="submitReport"
+              :disabled="!reportReason || reportSubmitting"
+              class="flex-1 py-3 rounded-xl font-semibold transition text-sm"
+              :class="reportReason
+                ? 'bg-red-500 hover:bg-red-600 text-white'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed'">
+              {{ reportSubmitting ? 'Submitting...' : 'Submit Report' }}
+            </button>
+          </div>
+        </template>
+
+      </div>
+    </div>
+  </Transition>
+</Teleport>
 
   </div>
 </template>

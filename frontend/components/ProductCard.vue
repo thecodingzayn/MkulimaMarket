@@ -34,7 +34,16 @@
 
         <!-- Info -->
         <div class="p-3">
-          <h3 class="font-semibold text-gray-800 truncate">{{ product.title }}</h3>
+          <!-- Title + verified badge -->
+          <div class="flex items-center gap-1.5 mb-0.5">
+            <h3 class="font-semibold text-gray-800 truncate flex-1">{{ product.title }}</h3>
+            <div v-if="product.profiles?.is_verified || product.is_verified"
+              class="shrink-0"
+              title="Verified Seller">
+              <Icon icon="mdi:check-decagram" class="w-4 h-4 text-blue-500" />
+            </div>
+          </div>
+
           <p class="text-green-600 font-bold text-lg">
             KSh {{ Number(product.price).toLocaleString('en-KE') }}
           </p>

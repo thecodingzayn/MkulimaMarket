@@ -8,7 +8,7 @@ const { data: { user } } = await supabase.auth.getUser()
 const { data: profile } = await useAsyncData('seller-profile', async () => {
   const { data } = await supabase
     .from('profiles')
-    .select('id, name, phone, location, avatar_url, created_at')
+    .select('id, name, phone, location, avatar_url, created_at, is_verified, verification_status')
     .eq('id', route.params.id)
     .single()
   return data
@@ -102,13 +102,42 @@ const isOwnProfile = computed(() => user?.id === route.params.id)
           <div class="bg-white rounded-2xl shadow-sm p-6 text-center">
 
             <!-- Avatar -->
-            <div class="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4 overflow-hidden border-4 border-white shadow-md">
-              <img v-if="profile.avatar_url" :src="profile.avatar_url"
-                class="w-full h-full object-cover" />
-              <Icon v-else icon="mdi:account" class="w-14 h-14 text-green-400" />
+            <div class="relative inline-block mb-4">
+              <div class="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center mx-auto overflow-hidden border-4 border-white shadow-md">
+                <img v-if="profile.avatar_url" :src="profile.avatar_url"
+                  class="w-full h-full object-cover" />
+                <Icon v-else icon="mdi:account" class="w-14 h-14 text-green-400" />
+              </div>
+              <!-- Verified badge on avatar -->
+              <div v-if="profile.is_verified"
+                class="absolute -bottom-1 -right-1 w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white shadow"
+                title="Verified Seller">
+                <Icon icon="mdi:check" class="w-4 h-4 text-white" />
+              </div>
             </div>
 
-            <h1 class="text-xl font-bold text-gray-800">{{ profile.name }}</h1>
+            <!-- Name + verified -->
+            <div class="flex items-center justify-center gap-2 mb-1">
+              <h1 class="text-xl font-bold text-gray-800">{{ profile.name }}</h1>
+              <Icon v-if="profile.is_verified"
+                icon="mdi:check-decagram"
+                class="w-5 h-5 text-blue-500 shrink-0"
+                title="Verified Seller" />
+            </div>
+
+            <!-- Verified label -->
+            <div v-if="profile.is_verified"
+              class="inline-flex items-center gap-1.5 bg-blue-50 text-blue-600 text-xs font-semibold px-3 py-1 rounded-full mb-2">
+              <Icon icon="mdi:check-decagram" class="w-3.5 h-3.5" />
+              Verified Seller
+            </div>
+
+            <!-- Pending badge -->
+            <div v-else-if="profile.verification_status === 'pending' && isOwnProfile"
+              class="inline-flex items-center gap-1.5 bg-orange-50 text-orange-600 text-xs font-semibold px-3 py-1 rounded-full mb-2">
+              <Icon icon="mdi:clock-outline" class="w-3.5 h-3.5" />
+              Verification Pending
+            </div>
 
             <p v-if="profile.location" class="text-sm text-gray-400 mt-1 flex items-center justify-center gap-1">
               <Icon icon="mdi:map-marker" class="w-4 h-4" />
@@ -130,12 +159,19 @@ const isOwnProfile = computed(() => user?.id === route.params.id)
             </div>
             <div v-else class="mt-4 text-xs text-gray-400">No reviews yet</div>
 
-            <!-- Edit profile button (own profile) -->
-            <NuxtLink v-if="isOwnProfile" to="/profile/edit"
-              class="mt-4 flex items-center justify-center gap-2 w-full border border-gray-200 hover:bg-gray-50 text-gray-600 py-2.5 rounded-xl font-semibold transition text-sm">
-              <Icon icon="mdi:pencil" class="w-4 h-4" />
-              Edit Profile
-            </NuxtLink>
+            <!-- Edit profile / Apply for verification -->
+            <div v-if="isOwnProfile" class="mt-4 space-y-2">
+              <NuxtLink to="/profile/edit"
+                class="flex items-center justify-center gap-2 w-full border border-gray-200 hover:bg-gray-50 text-gray-600 py-2.5 rounded-xl font-semibold transition text-sm">
+                <Icon icon="mdi:pencil" class="w-4 h-4" />
+                Edit Profile
+              </NuxtLink>
+              <NuxtLink v-if="!profile.is_verified" to="/profile/edit?section=verification"
+                class="flex items-center justify-center gap-2 w-full border border-blue-200 hover:bg-blue-50 text-blue-600 py-2.5 rounded-xl font-semibold transition text-sm">
+                <Icon icon="mdi:check-decagram" class="w-4 h-4" />
+                {{ profile.verification_status === 'pending' ? 'Verification Pending' : 'Apply for Verification' }}
+              </NuxtLink>
+            </div>
           </div>
 
           <!-- Stats -->

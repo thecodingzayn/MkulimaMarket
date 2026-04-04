@@ -208,6 +208,11 @@ const isActive = (path) => route.path.startsWith(path)
                   <Icon icon="mdi:bookmark-outline" class="w-4 h-4 text-gray-400 shrink-0" />
                   Saved Listings
                 </NuxtLink>
+                <NuxtLink to="/market-prices"
+  class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 text-sm text-gray-700 transition border-b border-gray-100">
+  <Icon icon="mdi:chart-line" class="w-4 h-4 text-gray-400 shrink-0" />
+  Market Prices
+</NuxtLink>
 
                 <NuxtLink to="/profile/edit"
                   class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 text-sm text-gray-700 transition border-b border-gray-100">
