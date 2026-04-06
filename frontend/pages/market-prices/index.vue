@@ -6,6 +6,24 @@ definePageMeta({ middleware: 'no-admin' })
 const supabase = useSupabaseClient()
 const { data: { user } } = await supabase.auth.getUser()
 
+// ← ADD THIS RIGHT HERE at the top before anything else
+const categoryIcon = (cat) => {
+  const icons = {
+    '🥬 Vegetables': 'mdi:leaf',
+    '🍎 Fruits': 'mdi:fruit-cherries',
+    '🌽 Grains & Cereals': 'mdi:corn',
+    '🥛 Dairy Products': 'mdi:cup',
+    '🐔 Poultry': 'mdi:bird',
+    '🐄 Livestock': 'mdi:cow',
+    '🌿 Herbs & Spices': 'mdi:herb',
+    '🍯 Honey & Organic': 'mdi:beehive-outline',
+    '🐟 Fish & Seafood': 'mdi:fish',
+    '🌱 Seedlings & Inputs': 'mdi:sprout',
+    '🌾 Cash Crops': 'mdi:barley',
+  }
+  return icons[cat] ?? 'mdi:sprout'
+}
+
 const loading = ref(true)
 const allCategories = ref([])
 const selectedCategory = ref(null)
@@ -14,14 +32,12 @@ const trendData = ref(null)
 const trendLoading = ref(false)
 const searchQuery = ref('')
 
-// Price alert modal
 const showAlertModal = ref(false)
 const alertForm = ref({ target_price: '', direction: 'below' })
 const alertSaving = ref(false)
 const alertSuccess = ref(false)
 const userAlerts = ref([])
 
-// County comparison
 const showCountyBreakdown = ref(false)
 
 const loadAllCategories = async () => {
@@ -104,7 +120,6 @@ const deleteAlert = async (id) => {
 const hasAlertForCategory = (catName) =>
   userAlerts.value.some(a => a.category === catName)
 
-// SVG chart
 const chartPath = computed(() => {
   const hist = trendData.value?.history
   if (!hist?.length || hist.length < 2) return ''
@@ -136,14 +151,6 @@ const chartAreaPath = computed(() => {
 })
 
 const formatPrice = (p) => p != null ? `KSh ${Number(p).toLocaleString('en-KE')}` : '—'
-
-const fairnessLabel = (price, avg) => {
-  if (!avg || !price) return null
-  const ratio = price / avg
-  if (ratio < 0.85) return { text: 'Below market', color: 'text-blue-600 bg-blue-50', icon: 'mdi:trending-down' }
-  if (ratio > 1.15) return { text: 'Above market', color: 'text-red-600 bg-red-50', icon: 'mdi:trending-up' }
-  return { text: 'Fair price', color: 'text-green-600 bg-green-50', icon: 'mdi:check-circle' }
-}
 
 const filteredCategories = computed(() => {
   if (!searchQuery.value.trim()) return allCategories.value
@@ -183,8 +190,6 @@ const formatDate = (d) => {
         <p class="text-green-100 text-sm md:text-base max-w-xl mx-auto">
           Live price data from active listings across Kenya. Compare prices, track trends and set alerts.
         </p>
-
-        <!-- Search -->
         <div class="mt-6 max-w-md mx-auto">
           <div class="flex items-center bg-white rounded-xl px-4 py-3 gap-3">
             <Icon icon="mdi:magnify" class="w-5 h-5 text-gray-400 shrink-0" />
@@ -213,8 +218,8 @@ const formatDate = (d) => {
             :class="selectedCategory?.category === cat.category
               ? 'border-green-500 bg-green-50'
               : 'border-gray-100 hover:border-green-200 hover:bg-gray-50'">
-            <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-              <Icon icon="mdi:tag" class="w-5 h-5 text-green-600" />
+            <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+              <Icon :icon="categoryIcon(cat.category)" class="w-5 h-5 text-green-600" />
             </div>
             <span class="text-xs font-semibold text-gray-700">{{ cat.label }}</span>
             <span class="text-xs text-gray-400">{{ cat.count }} listings</span>
@@ -268,15 +273,14 @@ const formatDate = (d) => {
               <div class="flex items-center justify-between mb-3">
                 <div class="flex items-center gap-3">
                   <div class="w-10 h-10 rounded-full flex items-center justify-center bg-green-50 shrink-0">
-  <Icon :icon="categoryIcon(cat.category)" class="w-5 h-5 text-green-600" />
-</div>
+                    <Icon :icon="categoryIcon(cat.category)" class="w-5 h-5 text-green-600" />
+                  </div>
                   <div>
                     <h3 class="font-bold text-gray-800 text-sm">{{ cat.label }}</h3>
                     <p class="text-xs text-gray-400">{{ cat.count }} active listings</p>
                   </div>
                 </div>
                 <div class="flex items-center gap-1">
-                  <!-- Alert bell -->
                   <button v-if="user"
                     @click.stop="selectedCategory = cat; showAlertModal = true"
                     class="w-7 h-7 rounded-full flex items-center justify-center transition"
@@ -310,7 +314,7 @@ const formatDate = (d) => {
               </div>
             </div>
 
-            <!-- Expanded: trend + county breakdown -->
+            <!-- Expanded -->
             <Transition name="expand">
               <div v-if="selectedCategory?.category === cat.category"
                 class="border-t border-gray-100 px-5 pb-5 pt-4 space-y-4">
@@ -331,17 +335,14 @@ const formatDate = (d) => {
                     </span>
                   </div>
 
-                  <!-- Chart loading -->
                   <div v-if="trendLoading" class="h-32 bg-gray-100 rounded-xl animate-pulse"></div>
 
-                  <!-- No history -->
                   <div v-else-if="!trendData?.history?.length || trendData.history.length < 2"
                     class="h-24 flex items-center justify-center text-xs text-gray-400 bg-gray-50 rounded-xl">
                     <Icon icon="mdi:chart-line" class="w-4 h-4 mr-1" />
                     Not enough data yet
                   </div>
 
-                  <!-- SVG Chart -->
                   <div v-else class="bg-gray-50 rounded-xl p-3">
                     <svg viewBox="0 0 600 120" class="w-full h-28" preserveAspectRatio="none">
                       <defs>
@@ -375,7 +376,7 @@ const formatDate = (d) => {
 
                 <!-- County breakdown -->
                 <div v-if="cat.countyStats?.length">
-                  <button @click="showCountyBreakdown = !showCountyBreakdown"
+                  <button @click.stop="showCountyBreakdown = !showCountyBreakdown"
                     class="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3 w-full">
                     <Icon icon="mdi:map-marker-multiple" class="w-4 h-4 text-purple-500" />
                     Price by County
@@ -403,7 +404,7 @@ const formatDate = (d) => {
 
                 <!-- Set alert button -->
                 <button v-if="user"
-                  @click="showAlertModal = true"
+                  @click.stop="showAlertModal = true"
                   class="w-full flex items-center justify-center gap-2 border border-orange-300 text-orange-600 hover:bg-orange-50 py-2.5 rounded-xl font-semibold text-sm transition">
                   <Icon icon="mdi:bell-plus-outline" class="w-4 h-4" />
                   {{ hasAlertForCategory(cat.category) ? 'Update Price Alert' : 'Set Price Alert' }}
@@ -470,8 +471,8 @@ const formatDate = (d) => {
 
             <div v-if="selectedCategory" class="bg-gray-50 rounded-xl p-3 mb-4 flex items-center gap-3">
               <div class="w-10 h-10 rounded-full flex items-center justify-center bg-green-50 shrink-0">
-  <Icon :icon="categoryIcon(selectedCategory.category)" class="w-5 h-5 text-green-600" />
-</div>
+                <Icon :icon="categoryIcon(selectedCategory.category)" class="w-5 h-5 text-green-600" />
+              </div>
               <div>
                 <p class="font-semibold text-gray-800 text-sm">{{ selectedCategory.label }}</p>
                 <p class="text-xs text-gray-400">Current avg: {{ formatPrice(selectedCategory.avg) }}</p>

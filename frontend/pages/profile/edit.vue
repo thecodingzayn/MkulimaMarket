@@ -47,18 +47,26 @@ const verificationLoading = ref(false)
 const verificationSuccess = ref(false)
 const verificationError = ref('')
 
-const { data: verificationRequest, refresh: refreshVerification } = await useAsyncData('verification-request', async () => {
-  const { data } = await supabase
-    .from('verification_requests')
-    .select('*')
-    .eq('user_id', user.id)
-    .maybeSingle()
-  return data
-})
+const { data: verificationRequest, refresh: refreshVerification } = await useAsyncData(
+  'verification-request',
+  async () => {
+    const { data } = await supabase
+      .from('verification_requests')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    return data
+  },
+  { default: () => null }
+)
+
+// Use profile.verification_status as source of truth
+const verificationStatus = computed(() => profile.value?.verification_status ?? 'none')
 
 const submitVerification = async () => {
   verificationLoading.value = true
   verificationError.value = ''
+  verificationSuccess.value = false
   try {
     const { error: err } = await supabase
       .from('verification_requests')
@@ -76,7 +84,6 @@ const submitVerification = async () => {
 
     if (err) throw err
 
-    // Update verification_status on profile
     await supabase.from('profiles')
       .update({
         verification_status: 'pending',
@@ -100,43 +107,32 @@ const counties = [
   'Kisii', 'Kericho', 'Thika', 'Malindi', 'Garissa'
 ]
 
-const hasChanged = computed(() => {
-  return (
-    form.value.name !== profile.value?.name ||
-    form.value.phone !== profile.value?.phone ||
-    form.value.location !== profile.value?.location ||
-    avatarFile.value !== null
-  )
-})
+const hasChanged = computed(() =>
+  form.value.name !== profile.value?.name ||
+  form.value.phone !== profile.value?.phone ||
+  form.value.location !== profile.value?.location ||
+  avatarFile.value !== null
+)
 
 const handleAvatarChange = (e) => {
   const file = e.target.files[0]
   if (!file) return
-  if (file.size > 5 * 1024 * 1024) {
-    error.value = 'Image must be under 5MB'
-    return
-  }
+  if (file.size > 5 * 1024 * 1024) { error.value = 'Image must be under 5MB'; return }
   avatarFile.value = file
   avatarPreview.value = URL.createObjectURL(file)
 }
 
 const uploadAvatar = async () => {
   if (!avatarFile.value) return profile.value?.avatar_url ?? null
-
   const fileExt = avatarFile.value.name.split('.').pop()
   const fileName = `avatar-${user.id}-${Date.now()}.${fileExt}`
-
   if (profile.value?.avatar_url) {
     const oldPath = profile.value.avatar_url.split('/product-images/')[1]
     if (oldPath) await supabase.storage.from('product-images').remove([oldPath])
   }
-
   const { error: uploadError } = await supabase.storage
-    .from('product-images')
-    .upload(fileName, avatarFile.value, { upsert: true })
-
+    .from('product-images').upload(fileName, avatarFile.value, { upsert: true })
   if (uploadError) throw uploadError
-
   const { data } = supabase.storage.from('product-images').getPublicUrl(fileName)
   return data.publicUrl
 }
@@ -145,30 +141,19 @@ const saveProfile = async () => {
   loading.value = true
   error.value = ''
   success.value = false
-
   try {
     const avatarUrl = await uploadAvatar()
     const { error: updateError } = await supabase
       .from('profiles')
-      .update({
-        name: form.value.name,
-        phone: form.value.phone,
-        location: form.value.location,
-        avatar_url: avatarUrl,
-      })
+      .update({ name: form.value.name, phone: form.value.phone, location: form.value.location, avatar_url: avatarUrl })
       .eq('id', user.id)
-
     if (updateError) throw updateError
-
     avatarFile.value = null
     await refreshProfile()
     success.value = true
     setTimeout(() => { success.value = false }, 3000)
-  } catch (err) {
-    error.value = err.message
-  } finally {
-    loading.value = false
-  }
+  } catch (err) { error.value = err.message }
+  finally { loading.value = false }
 }
 
 const removeAvatar = async () => {
@@ -181,11 +166,8 @@ const removeAvatar = async () => {
     avatarPreview.value = null
     avatarFile.value = null
     await refreshProfile()
-  } catch (err) {
-    error.value = err.message
-  } finally {
-    avatarLoading.value = false
-  }
+  } catch (err) { error.value = err.message }
+  finally { avatarLoading.value = false }
 }
 
 const sections = [
@@ -215,18 +197,18 @@ const sections = [
               <button v-for="s in sections" :key="s.key"
                 @click="activeSection = s.key"
                 class="w-full text-left px-5 py-4 text-sm transition flex items-center gap-3"
-                :class="activeSection === s.key
-                  ? 'text-green-600 bg-green-50 font-semibold'
-                  : 'text-gray-700 hover:bg-gray-50'">
+                :class="activeSection === s.key ? 'text-green-600 bg-green-50 font-semibold' : 'text-gray-700 hover:bg-gray-50'">
                 <Icon :icon="s.icon" class="w-4 h-4 shrink-0" />
                 <span class="flex-1">{{ s.label }}</span>
-                <!-- Verified badge in sidebar -->
                 <Icon v-if="s.key === 'verification' && profile?.is_verified"
                   icon="mdi:check-decagram" class="w-4 h-4 text-blue-500 shrink-0" />
-                <!-- Pending indicator -->
-                <span v-else-if="s.key === 'verification' && profile?.verification_status === 'pending'"
+                <span v-else-if="s.key === 'verification' && verificationStatus === 'pending'"
                   class="text-xs bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full font-semibold shrink-0">
                   Pending
+                </span>
+                <span v-else-if="s.key === 'verification' && verificationStatus === 'rejected'"
+                  class="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-semibold shrink-0">
+                  Rejected
                 </span>
               </button>
             </div>
@@ -243,8 +225,7 @@ const sections = [
                 <h2 class="text-xl font-bold text-gray-800">Personal details</h2>
                 <span v-if="success"
                   class="bg-green-100 text-green-700 text-sm px-4 py-1 rounded-full font-semibold flex items-center gap-1">
-                  <Icon icon="mdi:check-circle" class="w-4 h-4" />
-                  Saved
+                  <Icon icon="mdi:check-circle" class="w-4 h-4" />Saved
                 </span>
               </div>
 
@@ -253,6 +234,12 @@ const sections = [
                   <div class="w-28 h-28 rounded-full overflow-hidden bg-green-100 flex items-center justify-center border-4 border-white shadow-md">
                     <img v-if="avatarPreview" :src="avatarPreview" class="w-full h-full object-cover" />
                     <Icon v-else icon="mdi:account" class="w-16 h-16 text-green-400" />
+                  </div>
+                  <!-- Verified badge on avatar -->
+                  <div v-if="profile?.is_verified"
+                    class="absolute -bottom-1 -right-1 w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white shadow"
+                    title="Verified Seller">
+                    <Icon icon="mdi:check" class="w-4 h-4 text-white" />
                   </div>
                   <label class="absolute inset-0 rounded-full bg-black bg-opacity-0 group-hover:bg-opacity-40 flex items-center justify-center cursor-pointer transition-all">
                     <Icon icon="mdi:camera" class="w-7 h-7 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -278,8 +265,7 @@ const sections = [
 
               <div class="max-w-md mx-auto space-y-5">
                 <div v-if="error" class="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-                  <Icon icon="mdi:alert-circle" class="w-4 h-4 shrink-0" />
-                  {{ error }}
+                  <Icon icon="mdi:alert-circle" class="w-4 h-4 shrink-0" />{{ error }}
                 </div>
                 <div class="relative">
                   <label class="absolute -top-2 left-3 bg-white px-1 text-xs text-gray-500">Full Name</label>
@@ -324,8 +310,7 @@ const sections = [
                   {{ loading ? 'Saving...' : 'Update Phone' }}
                 </button>
                 <div v-if="success" class="bg-green-50 text-green-700 px-4 py-3 rounded-lg text-sm text-center flex items-center justify-center gap-2">
-                  <Icon icon="mdi:check-circle" class="w-4 h-4" />
-                  Phone number updated!
+                  <Icon icon="mdi:check-circle" class="w-4 h-4" />Phone number updated!
                 </div>
               </div>
             </template>
@@ -352,12 +337,10 @@ const sections = [
                 </p>
                 <button @click="async () => { await supabase.auth.resetPasswordForEmail(user.email); success = true }"
                   class="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2">
-                  <Icon icon="mdi:email-outline" class="w-4 h-4" />
-                  Send Reset Link
+                  <Icon icon="mdi:email-outline" class="w-4 h-4" />Send Reset Link
                 </button>
                 <div v-if="success" class="bg-green-50 text-green-700 px-4 py-3 rounded-lg text-sm text-center flex items-center justify-center gap-2">
-                  <Icon icon="mdi:check-circle" class="w-4 h-4" />
-                  Reset link sent to your email!
+                  <Icon icon="mdi:check-circle" class="w-4 h-4" />Reset link sent to your email!
                 </div>
               </div>
             </template>
@@ -374,7 +357,7 @@ const sections = [
                 </div>
               </div>
 
-              <!-- Already verified -->
+              <!-- ✅ VERIFIED -->
               <div v-if="profile?.is_verified"
                 class="bg-blue-50 border border-blue-200 rounded-2xl p-6 text-center">
                 <Icon icon="mdi:check-decagram" class="w-14 h-14 text-blue-500 mx-auto mb-3" />
@@ -385,35 +368,112 @@ const sections = [
                 </p>
               </div>
 
-              <!-- Pending -->
-              <div v-else-if="verificationRequest?.status === 'pending'"
+              <!-- ❌ REJECTED — show rejection notice + reapply form -->
+              <template v-else-if="verificationStatus === 'rejected'">
+                <div class="bg-red-50 border border-red-200 rounded-2xl p-5 mb-6">
+                  <div class="flex items-start gap-3">
+                    <Icon icon="mdi:close-circle" class="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p class="font-semibold text-red-700 text-sm">Your verification was not approved</p>
+                      <p v-if="verificationRequest?.admin_note" class="text-xs text-red-500 mt-0.5">
+                        Reason: {{ verificationRequest.admin_note }}
+                      </p>
+                      <p class="text-xs text-red-400 mt-1">You may reapply below.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Benefits -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+                  <div class="bg-blue-50 rounded-xl p-3 text-center">
+                    <Icon icon="mdi:check-decagram" class="w-6 h-6 text-blue-500 mx-auto mb-1" />
+                    <p class="text-xs font-semibold text-blue-700">Verified Badge</p>
+                    <p class="text-xs text-blue-500 mt-0.5">On profile & listings</p>
+                  </div>
+                  <div class="bg-green-50 rounded-xl p-3 text-center">
+                    <Icon icon="mdi:trending-up" class="w-6 h-6 text-green-500 mx-auto mb-1" />
+                    <p class="text-xs font-semibold text-green-700">More Visibility</p>
+                    <p class="text-xs text-green-500 mt-0.5">Buyers trust verified sellers</p>
+                  </div>
+                  <div class="bg-purple-50 rounded-xl p-3 text-center">
+                    <Icon icon="mdi:shield-check" class="w-6 h-6 text-purple-500 mx-auto mb-1" />
+                    <p class="text-xs font-semibold text-purple-700">Trusted Seller</p>
+                    <p class="text-xs text-purple-500 mt-0.5">Stand out from others</p>
+                  </div>
+                </div>
+
+                <div v-if="verificationSuccess"
+                  class="bg-green-50 text-green-700 px-4 py-3 rounded-xl mb-5 flex items-center gap-2">
+                  <Icon icon="mdi:check-circle" class="w-4 h-4" />
+                  Application resubmitted! We'll review and notify you soon.
+                </div>
+                <div v-if="verificationError"
+                  class="bg-red-50 text-red-600 px-4 py-3 rounded-xl mb-5 flex items-center gap-2 text-sm">
+                  <Icon icon="mdi:alert-circle" class="w-4 h-4 shrink-0" />{{ verificationError }}
+                </div>
+
+                <div class="space-y-4 max-w-lg">
+                  <div class="relative">
+                    <label class="absolute -top-2 left-3 bg-white px-1 text-xs text-gray-500">Full Name *</label>
+                    <input v-model="verificationForm.full_name" type="text"
+                      class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div class="relative">
+                    <label class="absolute -top-2 left-3 bg-white px-1 text-xs text-gray-500">Phone Number *</label>
+                    <input v-model="verificationForm.phone" type="tel"
+                      class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div class="relative">
+                    <label class="absolute -top-2 left-3 bg-white px-1 text-xs text-gray-500">National ID Number *</label>
+                    <input v-model="verificationForm.id_number" type="text"
+                      class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div class="relative">
+                    <label class="absolute -top-2 left-3 bg-white px-1 text-xs text-gray-500">Business Name (optional)</label>
+                    <input v-model="verificationForm.business_name" type="text"
+                      class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div class="relative">
+                    <label class="absolute -top-2 left-3 bg-white px-1 text-xs text-gray-500">County *</label>
+                    <select v-model="verificationForm.county"
+                      class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none">
+                      <option value="">Select your county</option>
+                      <option v-for="county in counties" :key="county" :value="county">{{ county }}</option>
+                    </select>
+                  </div>
+                  <div class="relative">
+                    <label class="absolute -top-2 left-3 bg-white px-1 text-xs text-gray-500">Why do you want to be verified? *</label>
+                    <textarea v-model="verificationForm.reason" rows="3"
+                      placeholder="Tell us about your farming business..."
+                      class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                  </div>
+                  <button @click="submitVerification"
+                    :disabled="verificationLoading || !verificationForm.full_name || !verificationForm.id_number || !verificationForm.county || !verificationForm.reason"
+                    class="w-full py-3 rounded-xl font-semibold transition flex items-center justify-center gap-2 text-sm"
+                    :class="verificationForm.full_name && verificationForm.id_number && verificationForm.county && verificationForm.reason
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'">
+                    <Icon v-if="verificationLoading" icon="mdi:loading" class="w-4 h-4 animate-spin" />
+                    <Icon v-else icon="mdi:check-decagram" class="w-4 h-4" />
+                    {{ verificationLoading ? 'Submitting...' : 'Resubmit Verification Request' }}
+                  </button>
+                </div>
+              </template>
+
+              <!-- ⏳ PENDING -->
+              <div v-else-if="verificationStatus === 'pending'"
                 class="bg-orange-50 border border-orange-200 rounded-2xl p-6 text-center">
                 <Icon icon="mdi:clock-outline" class="w-14 h-14 text-orange-400 mx-auto mb-3" />
                 <h3 class="font-bold text-orange-800 text-lg mb-1">Application Under Review</h3>
                 <p class="text-orange-600 text-sm">Your verification request is being reviewed. We'll notify you once approved.</p>
-                <p class="text-xs text-orange-400 mt-2">
+                <p v-if="verificationRequest?.created_at" class="text-xs text-orange-400 mt-2">
                   Submitted {{ new Date(verificationRequest.created_at).toLocaleDateString('en-KE') }}
                 </p>
               </div>
 
-              <!-- Rejected -->
-              <div v-else-if="verificationRequest?.status === 'rejected'"
-                class="bg-red-50 border border-red-200 rounded-2xl p-5 mb-6">
-                <div class="flex items-start gap-3">
-                  <Icon icon="mdi:close-circle" class="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                  <div>
-                    <p class="font-semibold text-red-700 text-sm">Previous application was rejected</p>
-                    <p v-if="verificationRequest?.admin_note" class="text-xs text-red-500 mt-0.5">
-                      Reason: {{ verificationRequest.admin_note }}
-                    </p>
-                    <p class="text-xs text-red-400 mt-1">You may reapply below.</p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Application form -->
-              <div v-if="!profile?.is_verified && verificationRequest?.status !== 'pending'">
-                <!-- What you get -->
+              <!-- 📝 NO APPLICATION YET -->
+              <template v-else>
+                <!-- Benefits -->
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
                   <div class="bg-blue-50 rounded-xl p-3 text-center">
                     <Icon icon="mdi:check-decagram" class="w-6 h-6 text-blue-500 mx-auto mb-1" />
@@ -437,11 +497,9 @@ const sections = [
                   <Icon icon="mdi:check-circle" class="w-4 h-4" />
                   Application submitted! We'll review and notify you soon.
                 </div>
-
                 <div v-if="verificationError"
                   class="bg-red-50 text-red-600 px-4 py-3 rounded-xl mb-5 flex items-center gap-2 text-sm">
-                  <Icon icon="mdi:alert-circle" class="w-4 h-4 shrink-0" />
-                  {{ verificationError }}
+                  <Icon icon="mdi:alert-circle" class="w-4 h-4 shrink-0" />{{ verificationError }}
                 </div>
 
                 <div class="space-y-4 max-w-lg">
@@ -494,7 +552,7 @@ const sections = [
                     {{ verificationLoading ? 'Submitting...' : 'Submit Verification Request' }}
                   </button>
                 </div>
-              </div>
+              </template>
 
             </template>
 

@@ -69,7 +69,7 @@ onMounted(async () => {
 
   const { data: profileData } = await supabase
     .from('profiles')
-    .select('name, phone, location, created_at')
+    .select('name, phone, location, created_at, is_verified')
     .eq('id', productData.user_id)
     .single()
 
@@ -667,7 +667,18 @@ const formatPrice = (p) => p ? `KSh ${Number(p).toLocaleString('en-KE')}` : '—
                   <Icon icon="mdi:account" class="w-8 h-8 text-green-600" />
                 </div>
                 <div>
-                  <NuxtLink :to="`/profile/${product.user_id}`" class="font-bold text-gray-800 hover:text-green-600 transition">{{ product.profiles?.name }}</NuxtLink>
+                  <div class="flex items-center gap-2 flex-wrap">
+  <NuxtLink :to="`/profile/${product.user_id}`"
+    class="font-bold text-gray-800 hover:text-green-600 transition">
+    {{ product.profiles?.name }}
+  </NuxtLink>
+  <!-- Verified badge -->
+  <div v-if="product.profiles?.is_verified"
+    class="inline-flex items-center gap-1 bg-blue-50 text-blue-600 text-xs font-semibold px-2 py-0.5 rounded-full">
+    <Icon icon="mdi:check-decagram" class="w-3.5 h-3.5" />
+    Verified
+  </div>
+</div>
                   <p class="text-xs text-gray-500 mt-0.5 flex items-center gap-1"><Icon icon="mdi:account-clock" class="w-3.5 h-3.5" />{{ memberSince(product.profiles?.created_at) }}</p>
                   <p class="text-xs text-gray-400 mt-0.5 flex items-center gap-1"><Icon icon="mdi:map-marker" class="w-3.5 h-3.5" />{{ product.profiles?.location }}</p>
                   <p class="text-xs text-gray-400 mt-0.5 flex items-center gap-1"><Icon icon="mdi:message-outline" class="w-3.5 h-3.5" />Typically replies within a few hours</p>
